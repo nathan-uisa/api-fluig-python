@@ -1,0 +1,20 @@
+API Fluig - Abertura de Chamados
+Versão 1.0.0
+
+IMPLEMENTAÇÕES:
+
+- API REST com FastAPI para integração com Fluig
+- Autenticação via API Key (header API-KEY)
+- Endpoint POST /chamado/abrir para abertura de chamados
+- Integração OAuth1 com Fluig (ambientes QLD e PRD)
+- Consulta de datasets Fluig:
+  * Dataset_colleague - Busca dados de colaboradores
+  * Dataset_funcionarios - Busca dados de funcionários
+  * Dataset_aprovadores - Busca dados de aprovadores
+- Processamento automático de dados do usuário:
+  * Busca informações do colaborador e funcionário
+  * Extrai código da seção automaticamente
+  * Monta payload completo para criação do chamado
+- Criação de chamados no ambiente QLD/PRD do Fluig
+- Validação de entrada com Pydantic (DadosChamado)
+
