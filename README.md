@@ -160,10 +160,6 @@ Acesse a interface web para criação de chamados:
 
 ## Endpoints
 
-> **⚠️ IMPORTANTE:** A partir da versão 2.0.0, todas as rotas seguem o padrão padronizado para Sensedia:
-> - Prefixo: `/api/v1`
-> - Ambiente como path parameter: `{ambiente}` (valores: `prd` ou `qld`)
-> - Estrutura RESTful hierárquica
 
 ### 1. Abertura de Chamado (Sem Classificação)
 
