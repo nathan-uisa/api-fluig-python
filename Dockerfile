@@ -1,6 +1,26 @@
 # Usar imagem base do Python
 FROM python:3.11-slim
 
+# 1. Instalar apenas utilitários básicos para download
+# O apt resolverá automaticamente as dependências do Chrome ao instalar o .deb
+RUN apt-get update && apt-get install -y \
+    wget \
+    curl \
+    gnupg \
+    unzip \
+    --no-install-recommends && \
+    rm -rf /var/lib/apt/lists/*
+
+# 2. Baixar e instalar Google Chrome Stable diretamente via .deb
+# O comando 'apt-get install -y ./google-chrome-stable_current_amd64.deb' 
+# resolve as dependências (alsa, nss, x11, etc.) automaticamente
+# Isso evita erros de pacotes obsoletos como libgconf-2-4
+RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
+    apt-get update && \
+    apt-get install -y ./google-chrome-stable_current_amd64.deb && \
+    rm google-chrome-stable_current_amd64.deb && \
+    rm -rf /var/lib/apt/lists/*
+
 # Definir diretório de trabalho
 WORKDIR /app
 
@@ -13,9 +33,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copiar código da aplicação
 COPY . .
 
-# Expor a porta da aplicação
-EXPOSE 9080
+# Expor a porta da aplicação (Cloud Run define dinamicamente via variável PORT)
+EXPOSE ${PORT:-3000}
 
-# Comando para executar a aplicação
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "9080"]
+# Comando para executar a aplicação usando a porta definida pelo Cloud Run
+CMD sh -c "uvicorn main:app --host 0.0.0.0 --port ${PORT:-3000}"
 

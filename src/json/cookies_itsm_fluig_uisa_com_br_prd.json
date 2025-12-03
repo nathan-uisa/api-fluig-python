@@ -1,0 +1,60 @@
+[
+  {
+    "domain": ".uisa.com.br",
+    "expiry": 1799341368,
+    "httpOnly": false,
+    "name": "_ga_F0FT6D1NQG",
+    "path": "/",
+    "sameSite": "Lax",
+    "secure": false,
+    "value": "GS2.1.s1764781368$o1$g0$t1764781368$j60$l0$h0"
+  },
+  {
+    "domain": "fluig.uisa.com.br",
+    "httpOnly": true,
+    "name": "JSESSIONIDSSO",
+    "path": "/",
+    "sameSite": "Lax",
+    "secure": true,
+    "value": "ER17rnypI-1o2ox249t9Y4pDuHHrsAs5_kWRTau3"
+  },
+  {
+    "domain": "fluig.uisa.com.br",
+    "expiry": 1766581368,
+    "httpOnly": true,
+    "name": "jwt.token",
+    "path": "/",
+    "sameSite": "Lax",
+    "secure": true,
+    "value": "eyJraWQiOiIxMzA5OTY4Yy01NGI2LTRiMWEtOWNjYS01OWY5M2FjNjU0NWUiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJpdHNtLmZsdWlnLnVpc2EuY29tLmJyLjEiLCJyb2xlIjoidXNlciIsInRlbmFudCI6MSwidXNlclRlbmFudElkIjoxODE2LCJ1c2VyVHlwZSI6MCwidXNlclVVSUQiOiJkYWVkMzgzNC04NWQyLTRhZWQtODE5Mi1lMTViZGZhNWQwOGEiLCJ0ZW5hbnRVVUlEIjoiMTMwOTk2OGMtNTRiNi00YjFhLTljY2EtNTlmOTNhYzY1NDVlIiwibGFzdFVwZGF0ZURhdGUiOjE3NjM4MzIxNjEwNzIsInVzZXJUaW1lWm9uZSI6IkFtZXJpY2EvQ3VpYWJhIiwiZXhwIjoxNzY0NzgyNTY4LCJpYXQiOjE3NjQ3ODEzNjgsImF1ZCI6ImZsdWlnX2F1dGhlbnRpY2F0b3JfcmVzb3VyY2UifQ.UqLMAzW-Ico3DC3G1C4MX2T-dUBXTci7FKzHL3Pwxo-VplKbIf39Mb6ucrXo-4vjIltsNqsIUElk66L82U12Fy2b-44Sw_neyivXK603JmUjs8hUVnsh3bAVjZHihUh4tpQYcIsh9bj8vJcWgbSDPX_F0FQen2odGi3HK9fHXwIDMqMak2LcjIeZNQgYMY-5cmX7cbLi2vAgTp-ihNxXBpaSUJqRvESp4OxA9kktaTghoJQ3E-7xi1EwtdCzEDz8F3T9pZYeWS5PJttttyvII6BCmxSQz5rOcTibSnMyBrVVletNfCo68LrGF_EKbPXnOUMRUOO_2Wv4OHrzXdi7KA"
+  },
+  {
+    "domain": ".uisa.com.br",
+    "expiry": 1799341368,
+    "httpOnly": false,
+    "name": "_ga",
+    "path": "/",
+    "sameSite": "Lax",
+    "secure": false,
+    "value": "GA1.1.1151158833.1764781368"
+  },
+  {
+    "domain": "fluig.uisa.com.br",
+    "httpOnly": true,
+    "name": "JSESSIONID",
+    "path": "/",
+    "sameSite": "Lax",
+    "secure": true,
+    "value": "\"R3frq8KTwjYn5K55TPqFteKCdnhwHIah4wZnNU6Z.master:fluig1\""
+  },
+  {
+    "domain": ".uisa.com.br",
+    "expiry": 1796317317,
+    "httpOnly": true,
+    "name": "cf_clearance",
+    "path": "/",
+    "sameSite": "None",
+    "secure": true,
+    "value": "Xo_LNfwJH3AxMbh58Bc3TL9w_k._pAA_oOD.SGGkfZE-1764781317-1.2.1.1-xtOtyRSK7PYT6LsjnMoib4Tpkq7pbSju8.WMZvAu.6MJdv5sjzrh5LnmF9SwJ4hsNWRxZaajJofiZVgj4mIdnjSJrZjwzIMTy5_spzDRZrEGy8gmTyLWdhqT3O38HvtV2UGNeJtWH35cMLlC8FC_oaGgiz1Zy2goR4hyahxby80y6dF43p.OSDj54HQJgqbOf1h_WUu5fua4qBQxLUiMt2P2RJLJkdw6R1e9977Q_xM"
+  }
+]

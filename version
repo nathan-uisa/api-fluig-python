@@ -1,20 +1,273 @@
 API Fluig - Abertura de Chamados
 Versão 1.0.0
+  IMPLEMENTAÇÕES:
+  - API REST com FastAPI para integração com Fluig
+  - Autenticação via API Key (header API-KEY)
+  - Endpoint POST /chamado/abrir para abertura de chamados
+  - Integração OAuth1 com Fluig (ambientes QLD e PRD)
+  - Consulta de datasets Fluig:
+    * Dataset_colleague - Busca dados de colaboradores
+    * Dataset_funcionarios - Busca dados de funcionários
+    * Dataset_aprovadores - Busca dados de aprovadores
+  - Processamento automático de dados do usuário:
+    * Busca informações do colaborador e funcionário
+    * Extrai código da seção automaticamente
+    * Monta payload completo para criação do chamado
+  - Criação de chamados no ambiente QLD/PRD do Fluig
+  - Validação de entrada com Pydantic (DadosChamado)
 
-IMPLEMENTAÇÕES:
+Versão 1.0.1
+  IMPLEMENTAÇÕES:
+  - Separação de rotas independentes para ambientes PRD e QLD
+    * router_prd - Rota POST /fluig/chamado/abrir (ambiente PRD)
+    * router_qld - Rota POST /fluigqld/chamado/abrir (ambiente QLD)
+  - Refatoração da função Payload para receber datasets como parâmetros
+  - Implementação dinâmica de identificação de usuário:
+    * targetAssignee agora utiliza colleagueId do dataset
+    * h_solicitante agora utiliza colleagueId do dataset
+  - Otimização do retorno da rota QLD:
+    * Retorna apenas o processInstanceId do chamado criado
+  - Melhorias nos logs de processamento:
+    * Mensagem "CHAMADO ABERTO: " para melhor rastreabilidade
 
-- API REST com FastAPI para integração com Fluig
-- Autenticação via API Key (header API-KEY)
-- Endpoint POST /chamado/abrir para abertura de chamados
-- Integração OAuth1 com Fluig (ambientes QLD e PRD)
-- Consulta de datasets Fluig:
-  * Dataset_colleague - Busca dados de colaboradores
-  * Dataset_funcionarios - Busca dados de funcionários
-  * Dataset_aprovadores - Busca dados de aprovadores
-- Processamento automático de dados do usuário:
-  * Busca informações do colaborador e funcionário
-  * Extrai código da seção automaticamente
-  * Monta payload completo para criação do chamado
-- Criação de chamados no ambiente QLD/PRD do Fluig
-- Validação de entrada com Pydantic (DadosChamado)
+Versão 1.0.2
+  IMPLEMENTAÇÕES:
+  - Nova rota para abertura de chamados via email:
+    * router_chamado_email - Rota POST /email/fluig para processar emails
+  - Integração com Inteligência Artificial (Google Generative AI):
+    * Módulo ia/ia.py - Processamento de textos com múltiplas chaves e modelos
+    * Módulo prompt/prompts.py - Estruturação de prompts para validação de chamados
+  - Validação inteligente de chamados via IA:
+    * Validação de título e descrição do chamado
+    * Correção automática de erros de digitação, ortografia e gramática
+    * Validação de coerência entre título e descrição
+  - Processamento de emails para abertura de chamados:
+    * Recebe email com assunto e corpo
+    * Processa com IA para validar e extrair informações
+    * Abre chamado automaticamente no ambiente QLD quando aprovado
+    * Retorna mensagem de rejeição quando o chamado não atende aos critérios
 
+Versão 1.0.3
+  IMPLEMENTAÇÕES:
+    Nova rota QLD para abertura de chamados via email:
+    * router_chamado_email_qld - Rota POST /email/fluigqld para processar emails
+
+Versão 1.0.4
+  IMPLEMENTAÇÕES:
+  - Sistema de logs:
+    * Módulo modulos/logger.py - Configuração de logging com rotação de arquivos
+  - Melhorias no tratamento de erros:
+    * Funções auxiliares de validação (info_fluig, info_dataset)
+    * Validação robusta de datasets antes do uso
+    * Validação de respostas do Fluig antes de acessar dados
+    * Tratamento específico para erros de validação e exceções inesperadas
+  - Validações em todas as rotas:
+    * Validação de campos obrigatórios na função Payload
+    * Validação de estrutura de dados antes de acessar índices
+    * Validação de respostas da IA (exceções e tipos inválidos)
+    * Validação de dados extraídos (título e descrição)
+
+Versão 1.0.5
+  IMPLEMENTAÇÕES:
+  - Correção do ambiente QLD:
+    * Rota POST /email/fluigqld para processar emails
+    * Rota POST /fluigqld/chamado/abrir para abertura de chamados
+    * Rota POST /fluigqld/chamado/abrir para abertura de chamados via email
+
+Versão 1.0.6
+  IMPLEMENTAÇÕES:
+  - Fallback de dados fixos para ambiente QLD:
+    * Função fake_dataset_funcionarios() - Cria dataset com dados fixos quando usuário não encontrado
+    * Implementado apenas no ambiente QLD para casos onde Dataset_funcionarios está vazio
+    * Usa dados padrão da empresa para permitir abertura de chamado mesmo sem usuário no dataset
+    * Log de warning quando dados fixos são utilizados
+  - Melhorias no módulo de IA:
+    * Tratamento robusto de erro 429 (Resource exhausted)
+    * Loop continua tentando todas as combinações de keys e models mesmo com erros
+    * Armazena último erro apenas se todas as tentativas falharem
+    * Melhor resiliência contra rate limiting da API do Google
+
+Versão 1.0.7
+  IMPLEMENTAÇÕES:
+  - Validação de domínio de email:
+    * Função Bloack_Email() - Valida se email pertence ao domínio @uisa.com.br
+    * Implementada nas rotas de email (PRD e QLD) antes do processamento
+    * Bloqueia emails de domínios externos antes de chamar a API
+    * Retorna erro imediato se email não for válido
+  - Proteção contra loops de email:
+    * Bloqueio de emails do sistema que podem causar loops infinitos
+    * Emails bloqueados: fluig.uisa.com.br, noreply@uisa.com.br, no-reply@uisa.com.br, sistema@uisa.com.br, automacao@uisa.com.br
+    * Previne que emails de confirmação do sistema sejam processados novamente
+    * Log de warning quando email do sistema é detectado
+
+Versão 1.0.8
+  IMPLEMENTAÇÕES:
+  - Atualização de dependências:
+    * Adicionado pydantic-settings==2.1.0 ao requirements.txt
+    * Necessário para uso de BaseSettings e SettingsConfigDict no módulo ConfigEnv
+  - Correção do modelo Funcionario:
+    * Adicionado mapeamento de aliases para campos com acentuação
+    * Campo "Gerência" mapeado para "Gerencia" usando Field(alias="Gerência")
+    * Campo "Data_Admissão" mapeado para "Data_Admissao" usando Field(alias="Data_Admissão")
+    * Configurado populate_by_name=True para permitir uso de alias e nome do campo
+    * Resolve erro de validação ao processar dados retornados pela API Fluig
+  - Nova rota de datasets:
+    * Rota POST /dataset/funcionario - Consulta dados de funcionários via Email ou Chapa
+    * Retorna dados validados usando modelo Funcionario
+    * Implementada busca alternativa por Chapa quando Email não encontra resultados
+  - Melhorias no modelo DadosEmail:
+    * Adicionado campo Telefone: str ao modelo DadosEmail
+    * Permite envio de telefone junto com dados do email
+
+Versão 1.0.9
+  IMPLEMENTAÇÕES:
+  - Telefone apenas nas rotas de email:
+    * Campo Telefone removido de DadosChamado e mantido opcional em DadosEmail
+    * Rotas /fluig/chamado/abrir e /fluigqld/chamado/abrir não expõem telefone na API
+  - Fallback automático de telefone:
+    * Novas rotas /email/fluig e /email/fluigqld aceitam telefone opcional
+    * Quando o campo não é enviado ou chega vazio, o telefone do Dataset_funcionarios é utilizado
+    * Payload sempre envia um número válido em num_tel_contato
+  - Refatoração da abertura de chamados:
+    * Nova função abrir_chamado_fluig centraliza a lógica compartilhada
+    * Permite reaproveitar validações e reaplicar telefone informado pelas rotas de email
+    * Mantém fallback de dados fixos apenas para o ambiente QLD
+
+Versão 2.0.0
+  IMPLEMENTAÇÕES:
+  - Sistema completo de logs implementado:
+    * Logs em todas as rotas principais (PRD, QLD, Email PRD, Email QLD)
+  - Correções de erros não tratados:
+    * Removido import inexistente (modulos.tool_function) de common_function.py
+    * Removido import duplicado de logger
+    * Substituído print() por logger em modulos/datasets.py
+    * Adicionada validação de parâmetros vazios em todas as funções críticas
+    * Validação de USER vazio/None em datasets
+    * Validação de PARAMETROS e URL em requisições Fluig
+    * Validação de prompt vazio no módulo de IA
+    * Validação de configurações de IA antes do processamento
+  - Melhorias no tratamento de erros:
+    * Tratamento de exceções com try/except em rotas principais
+    * Validação de parâmetros em rt_datasets.py antes de processar
+    * Mensagens de erro mais claras e informativas
+    * Logs de erro com exc_info=True para rastreamento completo
+    * Tratamento robusto de erros em todas as camadas da aplicação
+  - Melhorias em validações:
+    * Validação de resposta antes de acessar índices em rt_datasets.py
+    * Validação de listas de whitelist/blacklist em Block_Email
+    * Validação de configurações antes de usar em IA
+    * Validação de ambiente em requisições Fluig
+
+Versão 2.0.1
+  IMPLEMENTAÇÕES:
+  - Melhorias no prompt3 para extração de dados do usuário:
+    * Prompt3 agora extrai tanto email do usuário quanto ID (chapa)
+    * Prioriza extração de email quando disponível no resumo do alerta
+    * Adicionados padrões de extração de email em contextos diversos:
+      - Após palavras "user" ou "associated with user"
+      - Em contexto de login ou autenticação
+      - Em formato padrão de email (texto@dominio.com)
+    * Mantém padrões de extração de ID (chapa) existentes
+  - Otimização da rota AberturaDeChamadosMovti:
+    * Detecção automática se resultado da IA é email ou ID
+    * Fluxo otimizado para emails: busca direta no Dataset_colleague, sem passar por Dataset_funcionarios
+    * Fluxo mantido para IDs: busca primeiro em Dataset_funcionarios, depois em Dataset_colleague
+    * Redução de chamadas à API quando email é extraído diretamente
+    * Logs detalhados indicando se foi detectado email ou ID
+    * Retorno adaptado para incluir "N/A" no id_usuario quando email é extraído
+
+Versão 2.0.2
+  IMPLEMENTAÇÕES:
+  - Ajuste Rota AberturaDeChamadosMovti:
+
+Versão 2.1.0
+  IMPLEMENTAÇÕES:
+  - Autenticação automatizada via Selenium:
+    * Criação dos módulos web_login_fluig.py e web_auth_manager.py para centralizar login e cookies
+    * Validação de expiração de cookies e reautenticação automática apenas quando necessário
+    * Armazenamento de cookies por usuário e ambiente em src/json/
+  - Expansão das rotas Fluig:
+    * Novas rotas /fluig/servicos e /fluig/servicos/detalhes com salvamento dos retornos em JSON
+    * Rota /fluig/chamado/detalhes baseada no serviço findDetailsMyRequests
+    * /fluig/chamado/abrir simplificada para abrir chamados “em branco” com payload reduzido
+  - Refatorações do núcleo:
+    * FluigCore inicializa apenas com ambiente e Dataset_config passa a receber dataset_id e usuário
+    * Dataset_config utiliza definições de DatasetConfig e retorna somente datasetId/filterFields
+    * Adição de loggers em todo o fluxo para melhor rastreabilidade
+  - Novos payloads e integrações:
+    * PayloadChamadoClassificado com fallback para FakeUser quando usuário secops-soc@movti.com.br
+    * PayloadChamadoNormal simplificado e com telefone padrão “65” quando ausente
+    * PayloadChamadoMovtiClassificado integrando ia.py + prompt3 para extrair usuário do texto
+  - Integração Movti:
+    * Pasta movit renomeada para src/terceiro com MovitCore dedicado
+    * Nova rota /terceiro/movit/chamado/abrir-classificado fixando serviço 1142587
+    * Apps Script ajustado para separar emails da Movti e chamar rotas adequadas
+  - Padronização de respostas:
+    * Todas as rotas de abertura retornam apenas o processInstanceId numérico
+    * Salvamento dos detalhes de serviços/chamados em src/json para auditoria
+
+Versão 2.1.1
+  IMPLEMENTAÇÕES:
+  - Rotas QLD completas para serviços:
+    * Rota GET /fluigqld/servicos - Lista serviços do ambiente qualidade com salvamento em JSON
+    * Rota POST /fluigqld/servicos/detalhes - Obtém detalhes de serviços específicos do ambiente qualidade
+    * Serviços salvos em src/json/servicos_qld.json e servico_detalhes_{id}_qld.json
+  - Centralização de funções JSON:
+    * Criação de src/utilitarios_centrais/json_utils.py com funções compartilhadas
+    * Funções salvar_servicos_json() e salvar_detalhes_servico_json() centralizadas
+    * Removida duplicação de código entre rotas PRD e QLD
+  - Rotas QLD para chamados:
+    * Rota POST /fluigqld/chamado/abrir - Abertura de chamados sem classificação no ambiente qualidade
+    * Rota POST /fluigqld/chamado/detalhes - Busca detalhes de chamados no ambiente qualidade
+    * Isolamento completo do ambiente QLD, sem dependências do ambiente PRD
+  - Consolidação do sistema de login:
+    * Arquivos web_login_fluig_prd.py e web_login_fluig_qld.py unificados em web_login_fluig.py
+    * Função fazer_login_fluig() aceita parâmetro ambiente ('PRD' ou 'QLD')
+    * Seleção automática de URL baseada no ambiente (URL_FLUIG_PRD ou URL_FLUIG_QLD)
+  - Seleção dinâmica de credenciais por ambiente:
+    * FluigCore.AberturaDeChamado() seleciona credenciais baseado no ambiente
+    * Ambiente QLD usa FLUIG_USER_NAME_QLD e FLUIG_USER_PASS_QLD
+    * Ambiente PRD usa FLUIG_USER_NAME e FLUIG_USER_PASS
+  - Correção de uso de ambiente nas funções:
+    * PayloadChamadoNormal() agora recebe e utiliza corretamente o parâmetro ambiente
+    * Garantia de que todas as buscas de datasets usam o ambiente correto (PRD ou QLD)
+    * Isolamento completo entre ambientes em todo o fluxo de abertura de chamados
+  - Correção de colleague ID por ambiente:
+    * obter_detalhes_chamado() seleciona colleague ID baseado no ambiente
+    * Ambiente QLD usa USER_COLLEAGUE_ID_QLD para taskUserId
+    * Ambiente PRD usa ADMIN_COLLEAGUE_ID para taskUserId
+    * Logs detalhados indicando qual colleague ID está sendo utilizado
+
+Versão 3.0.0
+  IMPLEMENTAÇÕES:
+  - Padronização de rotas:
+    * Todas as rotas agora seguem o padrão /api/v1/fluig/{ambiente}/...
+    * Ambiente (prd ou qld) especificado como path parameter
+    * Versionamento de API com prefixo /api/v1
+    * Estrutura RESTful hierárquica e semântica
+    * Rotas PRD e QLD unificadas em um único endpoint com parâmetro de ambiente
+    * Rotas de terceiros padronizadas para /api/v1/terceiros/{provider}/...
+    * Remoção de rotas antigas separadas por ambiente (rt_fluig_prd.py, rt_fluig_qld.py, etc.)
+  - Integração completa do Webapp:
+    * Interface web completa para criação de chamados
+    * Autenticação via Google OAuth 2.0 com gerenciamento de sessões
+    * Rotas do webapp: /login, /logout, /chamado
+    * Templates HTML em src/site/templates/ (chamado.html, login.html)
+    * Arquivos estáticos em src/site/static/ (CSS, JavaScript)
+    * Middleware de sessão (SessionMiddleware) para gerenciamento de autenticação
+  - Funcionalidades do Webapp:
+    * Criação de chamados únicos com formulário completo
+    * Geração em lote via planilha Excel (.xlsx)
+    * Processamento de placeholders em planilhas (<A>, <B>, etc.)
+    * Autocomplete de serviços com busca inteligente
+    * Preenchimento automático de campos de classificação ao selecionar serviço
+    * Modal de processamento com feedback em tempo real
+    * Exibição dos números dos chamados criados durante o processamento
+    * Botão "Concluir" para fechar o modal após visualizar resultados
+    * Cache local de detalhes de serviços em src/json/services/
+  - Endpoints auxiliares do Webapp:
+    * POST /chamado/carregar-planilha: Carrega e processa planilha Excel
+    * POST /chamado/preview: Gera prévia dos chamados com placeholders substituídos
+    * GET /listar_servicos: Retorna lista de serviços para autocomplete
+    * POST /buscar_detalhes_servico: Busca detalhes de serviço por documentid
+    * Verificação de cache local antes de buscar na API
