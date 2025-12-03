@@ -1,9 +1,8 @@
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 import requests
 import urllib.parse
-import json
 from src.utilitarios_centrais.logger import logger
 from src.modelo_dados.modelo_settings import ConfigEnvSetings
 
@@ -19,18 +18,34 @@ async def login(request: Request):
     return templates.TemplateResponse("login.html", {"request": request})
 
 
+def _construir_redirect_uri(request: Request) -> str:
+    """
+    Constrói a URI de redirecionamento dinamicamente baseada na URL da requisição.
+    Funciona tanto para localhost quanto para produção.
+    """
+    # Obter a URL base da requisição
+    url = request.url
+    scheme = url.scheme
+    hostname = url.hostname
+    
+    # Construir a URL base (com porta se necessário)
+    if url.port and ((scheme == "http" and url.port != 80) or (scheme == "https" and url.port != 443)):
+        base_url = f"{scheme}://{hostname}:{url.port}"
+    else:
+        base_url = f"{scheme}://{hostname}"
+    
+    # Construir a URI de callback completa
+    redirect_uri = f"{base_url}/login/google/callback"
+    
+    logger.debug(f"Redirect URI construída: {redirect_uri}")
+    return redirect_uri
+
+
 @router.get("/login/google")
 async def login_google(request: Request):
     """Inicia o processo de login com Google"""
-    # Processar GOOGLE_REDIRECT_URIS (pode ser JSON array ou string única)
-    try:
-        redirect_uris = json.loads(ConfigEnvSetings.GOOGLE_REDIRECT_URIS)
-        if isinstance(redirect_uris, list) and len(redirect_uris) > 0:
-            redirect_uri = redirect_uris[0]
-        else:
-            redirect_uri = ConfigEnvSetings.GOOGLE_REDIRECT_URIS
-    except (json.JSONDecodeError, AttributeError):
-        redirect_uri = ConfigEnvSetings.GOOGLE_REDIRECT_URIS
+    # Construir redirect URI dinamicamente a partir da URL da requisição
+    redirect_uri = _construir_redirect_uri(request)
     
     GOOGLE_CLIENT_ID = ConfigEnvSetings.GOOGLE_CLIENT_ID
     GOOGLE_AUTH_URI = ConfigEnvSetings.GOOGLE_AUTH_URI or 'https://accounts.google.com/o/oauth2/auth'
@@ -44,21 +59,15 @@ async def login_google(request: Request):
     }
     
     auth_url = GOOGLE_AUTH_URI + '?' + urllib.parse.urlencode(params)
+    logger.info(f"Iniciando autenticação Google - Redirect URI: {redirect_uri}")
     return RedirectResponse(url=auth_url)
 
 
 @router.get("/login/google/callback")
 async def google_callback(request: Request):
     """Processa a resposta do Google OAuth"""
-    # Processar GOOGLE_REDIRECT_URIS (pode ser JSON array ou string única)
-    try:
-        redirect_uris = json.loads(ConfigEnvSetings.GOOGLE_REDIRECT_URIS)
-        if isinstance(redirect_uris, list) and len(redirect_uris) > 0:
-            redirect_uri = redirect_uris[0]
-        else:
-            redirect_uri = ConfigEnvSetings.GOOGLE_REDIRECT_URIS
-    except (json.JSONDecodeError, AttributeError):
-        redirect_uri = ConfigEnvSetings.GOOGLE_REDIRECT_URIS
+    # Construir redirect URI dinamicamente (deve ser a mesma usada na requisição inicial)
+    redirect_uri = _construir_redirect_uri(request)
     
     GOOGLE_CLIENT_ID = ConfigEnvSetings.GOOGLE_CLIENT_ID
     GOOGLE_CLIENT_SECRET = ConfigEnvSetings.GOOGLE_CLIENT_SECRET
@@ -81,6 +90,8 @@ async def google_callback(request: Request):
         'grant_type': 'authorization_code',
         'redirect_uri': redirect_uri
     }
+    
+    logger.debug(f"Trocando código por token - Redirect URI: {redirect_uri}")
     
     try:
         response = requests.post(GOOGLE_TOKEN_URI, data=token_data)
