@@ -709,9 +709,9 @@ Os logs são salvos automaticamente na pasta `logs/` na raiz do projeto.
 
 ## Versão
 
-**Versão Atual: 2.0.0**
+**Versão Atual: 3.0.0**
 
-### Mudanças na Versão 2.0.0 (Padronização):
+### Mudanças na Versão 3.0.0 (Padronização):
 - ✅ **Padronização de Rotas**: Todas as rotas agora seguem o padrão `/api/v1/fluig/{ambiente}/...`
 - ✅ **Ambiente como Path Parameter**: Ambiente (`prd` ou `qld`) agora é especificado no path da URL
 - ✅ **Versionamento de API**: Implementado prefixo `/api/v1` para versionamento
