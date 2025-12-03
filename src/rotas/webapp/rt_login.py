@@ -22,22 +22,74 @@ def _construir_redirect_uri(request: Request) -> str:
     """
     Constrói a URI de redirecionamento dinamicamente baseada na URL da requisição.
     Funciona tanto para localhost quanto para produção.
+    Detecta HTTPS corretamente mesmo quando atrás de um proxy reverso (Google Cloud Run).
     """
-    # Obter a URL base da requisição
     url = request.url
-    scheme = url.scheme
-    hostname = url.hostname
+    hostname = url.hostname or ""
     
-    # Construir a URL base (com porta se necessário)
-    if url.port and ((scheme == "http" and url.port != 80) or (scheme == "https" and url.port != 443)):
-        base_url = f"{scheme}://{hostname}:{url.port}"
+    # PRIORIDADE 1: Forçar HTTPS para Google Cloud Run (run.app)
+    # Isso é crítico pois o proxy interno usa HTTP, mas externamente é HTTPS
+    if hostname and "run.app" in hostname:
+        scheme = "https"
+        base_url = f"https://{hostname}"
+        logger.info(f"[Redirect URI] Forçando HTTPS para Google Cloud Run - hostname: {hostname}")
+    
+    # PRIORIDADE 2: Localhost sempre HTTP
+    elif hostname in ["127.0.0.1", "localhost"]:
+        scheme = "http"
+        if url.port and url.port != 80:
+            base_url = f"http://{hostname}:{url.port}"
+        else:
+            base_url = f"http://{hostname}"
+        logger.info(f"[Redirect URI] Usando HTTP para localhost - hostname: {hostname}")
+    
+    # PRIORIDADE 3: Verificar header X-Forwarded-Proto (usado por proxies)
+    elif request.headers.get("X-Forwarded-Proto", "").lower() == "https":
+        scheme = "https"
+        base_url = f"https://{hostname}"
+        logger.info(f"[Redirect URI] Usando HTTPS via X-Forwarded-Proto header - hostname: {hostname}")
+    
+    # PRIORIDADE 4: Verificar header Forwarded (padrão RFC 7239)
+    elif request.headers.get("Forwarded", ""):
+        forwarded_header = request.headers.get("Forwarded", "")
+        forwarded_proto = None
+        for part in forwarded_header.split(","):
+            if "proto=" in part.lower():
+                forwarded_proto = part.split("proto=")[-1].strip().strip('"').lower()
+                break
+        
+        if forwarded_proto == "https":
+            scheme = "https"
+            base_url = f"https://{hostname}"
+            logger.info(f"[Redirect URI] Usando HTTPS via Forwarded header - hostname: {hostname}")
+        else:
+            scheme = "http"
+            if url.port and url.port != 80:
+                base_url = f"http://{hostname}:{url.port}"
+            else:
+                base_url = f"http://{hostname}"
+    
+    # PRIORIDADE 5: Usar o scheme da URL (fallback)
     else:
-        base_url = f"{scheme}://{hostname}"
+        scheme = url.scheme
+        if scheme == "https":
+            base_url = f"https://{hostname}"
+        elif url.port and url.port != 80:
+            base_url = f"http://{hostname}:{url.port}"
+        else:
+            base_url = f"http://{hostname}"
+        logger.warning(f"[Redirect URI] Usando scheme da URL como fallback: {scheme} - hostname: {hostname}")
     
     # Construir a URI de callback completa
     redirect_uri = f"{base_url}/login/google/callback"
     
-    logger.debug(f"Redirect URI construída: {redirect_uri}")
+    # Log detalhado para debug
+    logger.info(f"[Redirect URI] URI construída: {redirect_uri}")
+    logger.debug(f"[Redirect URI] Detalhes - scheme: {scheme}, hostname: {hostname}, "
+                 f"X-Forwarded-Proto: {request.headers.get('X-Forwarded-Proto', 'N/A')}, "
+                 f"Forwarded: {request.headers.get('Forwarded', 'N/A')}, "
+                 f"url.scheme: {url.scheme}, url.port: {url.port}")
+    
     return redirect_uri
 
 
@@ -59,7 +111,14 @@ async def login_google(request: Request):
     }
     
     auth_url = GOOGLE_AUTH_URI + '?' + urllib.parse.urlencode(params)
-    logger.info(f"Iniciando autenticação Google - Redirect URI: {redirect_uri}")
+    
+    # Log detalhado para debug do redirect_uri_mismatch
+    logger.info(f"Iniciando autenticação Google")
+    logger.info(f"⚠️ Redirect URI sendo enviada ao Google: {redirect_uri}")
+    logger.info(f"URL da requisição original: {request.url}")
+    logger.info(f"X-Forwarded-Proto header: {request.headers.get('X-Forwarded-Proto', 'N/A')}")
+    logger.warning(f"⚠️ CERTIFIQUE-SE de que esta URI está configurada no Google Console: {redirect_uri}")
+    
     return RedirectResponse(url=auth_url)
 
 
