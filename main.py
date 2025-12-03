@@ -9,7 +9,7 @@ from src.rotas.webapp import rt_login, rt_chamado
 
 import uvicorn
 
-app = FastAPI(title="API Fluig", version="2.0.0", description="API REST para integração com Fluig - Padronizada para Sensedia")
+app = FastAPI(title="API Fluig", version="2.0.0", description="API REST para integração com Fluig")
 
 # Configurar sessões para o webapp
 app.add_middleware(SessionMiddleware, secret_key="sua-chave-secreta-aqui-altere-em-producao")

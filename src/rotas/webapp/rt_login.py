@@ -114,10 +114,10 @@ async def login_google(request: Request):
     
     # Log detalhado para debug do redirect_uri_mismatch
     logger.info(f"Iniciando autenticação Google")
-    logger.info(f"⚠️ Redirect URI sendo enviada ao Google: {redirect_uri}")
+    logger.info(f"Redirect URI sendo enviada ao Google: {redirect_uri}")
     logger.info(f"URL da requisição original: {request.url}")
     logger.info(f"X-Forwarded-Proto header: {request.headers.get('X-Forwarded-Proto', 'N/A')}")
-    logger.warning(f"⚠️ CERTIFIQUE-SE de que esta URI está configurada no Google Console: {redirect_uri}")
+    logger.warning(f"CERTIFIQUE-SE de que esta URI está configurada no Google Console: {redirect_uri}")
     
     return RedirectResponse(url=auth_url)
 

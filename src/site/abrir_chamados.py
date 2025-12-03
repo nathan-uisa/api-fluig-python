@@ -1,7 +1,6 @@
 import configparser
 import re
 import os
-import requests
 from typing import Dict, Optional
 from src.utilitarios_centrais.logger import logger
 from src.site.planilha import PATH_TO_TEMP
@@ -26,9 +25,6 @@ class AbrirChamados:
         """
         self.email_usuario = email_usuario
         self.config_planilha = configparser.ConfigParser()
-        self.headers = {
-            ConfigEnvSetings.API_NAME: ConfigEnvSetings.API_KEY
-        }
     
     def carregar_dados_temp(self) -> bool:
         """
