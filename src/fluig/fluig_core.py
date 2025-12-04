@@ -341,47 +341,12 @@ class FluigCore():
             # Monta payload conforme payload_anexar_arquivo_chamado.json
             # IMPORTANTE: taskUserId e colleagueId devem ser ADMIN_COLLEAGUE_ID
             # attachedUser é fixo: "Infra Automação"
-            payload = {
-                "processId": "Abertura de Chamados",
-                "version": version,
-                "managerMode": False,
-                "taskUserId": admin_colleague_id,
-                "processInstanceId": process_instance_id,
-                "isDigitalSigned": False,
-                "selectedState": 5,
-                "attachments": [{
-                    "id": 1,
-                    "fullPath": "BPM",
-                    "droppedZipZone": False,
-                    "name": nome_arquivo,
-                    "newAttach": True,
-                    "description": nome_arquivo,
-                    "documentId": 0,
-                    "attachedUser": "Infra Automação",
-                    "attachedActivity": "Aguardando Classificação",
-                    "attachments": [{
-                        "attach": False,
-                        "principal": True,
-                        "fileName": nome_arquivo
-                    }],
-                    "hasOwnSubMenu": True,
-                    "enablePublish": False,
-                    "enableEdit": False,
-                    "enableEditContent": False,
-                    "fromUpload": True,
-                    "enableDownload": True,
-                    "hasMoreOptions": False,
-                    "iconClass": "fluigicon-file-upload",
-                    "iconUrl": False,
-                    "colleagueId": admin_colleague_id
-                }],
-                "currentMovto": current_movto
-            }
+            payload = {"processId": "Abertura de Chamados","version": version,"managerMode": False,"taskUserId": admin_colleague_id,"processInstanceId": process_instance_id,"isDigitalSigned": False,"selectedState": 5,"attachments": [{"id": 1,"fullPath": "BPM","droppedZipZone": False,"name": nome_arquivo,"newAttach": True,"description": nome_arquivo,"documentId": 0,"attachedUser": "Infra Automação","attachedActivity": "Aguardando Classificação","attachments": [{"attach": False,"principal": True,"fileName": nome_arquivo}],"hasOwnSubMenu": True,"enablePublish": False,"enableEdit": False,"enableEditContent": False,"fromUpload": True,"enableDownload": True,"hasMoreOptions": False,"iconClass": "fluigicon-file-upload","iconUrl": False,"colleagueId": admin_colleague_id}],"currentMovto": current_movto}
             
             # Log do payload completo
             import json
             payload_json = json.dumps(payload, indent=2, ensure_ascii=False)
-            logger.info(f"[anexar_arquivo_chamado] Payload completo:\n{payload_json}")
+            logger.info(f"[anexar_arquivo_chamado] Payload completo:{payload_json}")
             
             # Headers
             headers = {

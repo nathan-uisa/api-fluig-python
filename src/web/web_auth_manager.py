@@ -2,6 +2,8 @@
 import time
 import base64
 import json as json_lib
+import threading
+import requests
 from datetime import datetime
 from typing import Optional, List, Dict, Tuple, Any
 from src.utilitarios_centrais.logger import logger
@@ -9,8 +11,22 @@ from src.web.web_login_fluig import fazer_login_fluig
 from src.web.web_cookies import (
     carregar_cookies,
     verificar_cookies_validos,
-    limpar_cookies
+    limpar_cookies,
+    salvar_cookies,
+    cookies_para_requests
 )
+from src.modelo_dados.modelo_settings import ConfigEnvSetings
+
+# Configurações de renovação automática
+TEMPO_ANTECEDENCIA_RENOVACAO = 300  # Renovar 5 minutos antes de expirar (em segundos)
+INTERVALO_VERIFICACAO = 60  # Verificar a cada 60 segundos
+TIMEOUT_KEEPALIVE = 30  # Timeout para requisição keepAlive
+
+# Dicionário para armazenar sessões ativas sendo monitoradas
+_sessoes_ativas: Dict[str, Dict[str, Any]] = {}
+_lock_sessoes = threading.Lock()
+_thread_renovacao: Optional[threading.Thread] = None
+_parar_renovacao = threading.Event()
 
 
 def extrair_exp_jwt(jwt_token: str) -> Optional[int]:
@@ -48,6 +64,351 @@ def extrair_exp_jwt(jwt_token: str) -> Optional[int]:
     except Exception as e:
         logger.debug(f"[extrair_exp_jwt] Erro ao extrair exp do JWT: {str(e)}")
         return None
+
+
+def _obter_url_base(ambiente: str) -> str:
+    """Obtém a URL base do Fluig para o ambiente especificado"""
+    if ambiente.upper() == "PRD":
+        return ConfigEnvSetings.URL_FLUIG_PRD
+    elif ambiente.upper() == "QLD":
+        return ConfigEnvSetings.URL_FLUIG_QLD
+    else:
+        raise ValueError(f"Ambiente inválido: {ambiente}")
+
+
+def _gerar_chave_sessao(ambiente: str, usuario: Optional[str]) -> str:
+    """Gera uma chave única para identificar a sessão"""
+    usuario_safe = usuario or "default"
+    return f"{ambiente.upper()}_{usuario_safe}"
+
+
+def obter_tempo_expiracao_jwt(cookies: List[Dict]) -> Optional[int]:
+    """
+    Obtém o tempo restante em segundos até a expiração do JWT
+    
+    Args:
+        cookies: Lista de cookies
+    
+    Returns:
+        Segundos até expiração ou None se não conseguir determinar
+    """
+    try:
+        for cookie in cookies:
+            if cookie.get('name') == 'jwt.token':
+                jwt_value = cookie.get('value', '')
+                if jwt_value:
+                    jwt_exp = extrair_exp_jwt(jwt_value)
+                    if jwt_exp:
+                        tempo_restante = jwt_exp - time.time()
+                        return int(tempo_restante) if tempo_restante > 0 else 0
+        return None
+    except Exception as e:
+        logger.debug(f"[obter_tempo_expiracao_jwt] Erro: {str(e)}")
+        return None
+
+
+def renovar_sessao_keepalive(
+    cookies: List[Dict], 
+    ambiente: str = "PRD",
+    usuario: Optional[str] = None
+) -> Optional[List[Dict]]:
+    """
+    Renova a sessão do Fluig via endpoint keepAlive
+    
+    Esta função faz uma requisição GET ao endpoint keepAlive que retorna
+    novos cookies (JSESSIONID e jwt.token) sem precisar fazer login completo.
+    
+    Args:
+        cookies: Lista de cookies atuais
+        ambiente: Ambiente ('PRD' ou 'QLD')
+        usuario: Nome do usuário para identificar os cookies
+    
+    Returns:
+        Lista de cookies atualizados ou None se falhou
+    """
+    try:
+        url_base = _obter_url_base(ambiente)
+        timestamp = int(time.time() * 1000)
+        url = f"{url_base}/portal/api/rest/session/keepAlive?space=&_={timestamp}"
+        
+        # Converte cookies para formato requests
+        cookies_dict = cookies_para_requests(cookies)
+        
+        headers = {
+            'Accept': '*/*',
+            'Content-Type': 'application/json; charset=utf-8',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+        
+        logger.info(f"[renovar_sessao_keepalive] Renovando sessão para {ambiente}, usuário: {usuario}")
+        
+        response = requests.get(
+            url, 
+            cookies=cookies_dict, 
+            headers=headers,
+            timeout=TIMEOUT_KEEPALIVE
+        )
+        
+        if response.status_code != 200:
+            logger.warning(f"[renovar_sessao_keepalive] Status {response.status_code} - Resposta: {response.text}")
+            return None
+        
+        # Verifica se a resposta é válida
+        if response.text.strip() not in ['"ok"', 'ok']:
+            logger.warning(f"[renovar_sessao_keepalive] Resposta inesperada: {response.text}")
+            return None
+        
+        # Extrai novos cookies da resposta
+        novos_cookies_response = response.cookies.get_dict()
+        
+        if not novos_cookies_response:
+            logger.debug("[renovar_sessao_keepalive] Nenhum cookie novo na resposta, mantendo atuais")
+            return cookies
+        
+        # Atualiza cookies existentes com os novos valores
+        cookies_atualizados = _atualizar_cookies(cookies, novos_cookies_response)
+        
+        # Salva os cookies atualizados
+        if salvar_cookies(cookies_atualizados, ambiente, usuario):
+            tempo_restante = obter_tempo_expiracao_jwt(cookies_atualizados)
+            if tempo_restante:
+                logger.info(f"[renovar_sessao_keepalive] Sessão renovada! JWT válido por mais {tempo_restante // 60} minutos")
+            else:
+                logger.info("[renovar_sessao_keepalive] Sessão renovada com sucesso")
+            return cookies_atualizados
+        else:
+            logger.warning("[renovar_sessao_keepalive] Falha ao salvar cookies atualizados")
+            return cookies_atualizados
+            
+    except requests.exceptions.Timeout:
+        logger.error("[renovar_sessao_keepalive] Timeout na requisição keepAlive")
+        return None
+    except requests.exceptions.RequestException as e:
+        logger.error(f"[renovar_sessao_keepalive] Erro de requisição: {str(e)}")
+        return None
+    except Exception as e:
+        logger.error(f"[renovar_sessao_keepalive] Erro ao renovar sessão: {str(e)}")
+        return None
+
+
+def _atualizar_cookies(cookies_atuais: List[Dict], novos_valores: Dict[str, str]) -> List[Dict]:
+    """
+    Atualiza lista de cookies com novos valores
+    
+    Args:
+        cookies_atuais: Lista de cookies atual
+        novos_valores: Dicionário com novos valores de cookies
+    
+    Returns:
+        Lista de cookies atualizada
+    """
+    cookies_atualizados = []
+    cookies_atualizados_nomes = set()
+    
+    for cookie in cookies_atuais:
+        nome = cookie.get('name', '')
+        if nome in novos_valores:
+            # Atualiza o valor do cookie existente
+            cookie_atualizado = cookie.copy()
+            cookie_atualizado['value'] = novos_valores[nome]
+            
+            # Se for jwt.token, atualiza também a expiração baseada no novo JWT
+            if nome == 'jwt.token':
+                novo_exp = extrair_exp_jwt(novos_valores[nome])
+                if novo_exp:
+                    cookie_atualizado['expiry'] = novo_exp
+                    
+            cookies_atualizados.append(cookie_atualizado)
+            cookies_atualizados_nomes.add(nome)
+        else:
+            cookies_atualizados.append(cookie)
+            cookies_atualizados_nomes.add(nome)
+    
+    # Adiciona cookies novos que não existiam
+    for nome, valor in novos_valores.items():
+        if nome not in cookies_atualizados_nomes:
+            novo_cookie = {
+                'name': nome,
+                'value': valor,
+                'domain': '.uisa.com.br',
+                'path': '/',
+                'secure': True,
+                'httpOnly': True
+            }
+            cookies_atualizados.append(novo_cookie)
+    
+    return cookies_atualizados
+
+
+def _verificar_e_renovar_sessoes():
+    """
+    Thread que verifica periodicamente e renova sessões ativas antes de expirarem
+    """
+    logger.info("[_verificar_e_renovar_sessoes] Thread de renovação automática iniciada")
+    
+    while not _parar_renovacao.is_set():
+        try:
+            with _lock_sessoes:
+                sessoes_para_renovar = list(_sessoes_ativas.items())
+            
+            for chave, sessao in sessoes_para_renovar:
+                try:
+                    ambiente = sessao.get('ambiente', 'PRD')
+                    usuario = sessao.get('usuario')
+                    
+                    # Carrega cookies atuais
+                    cookies = carregar_cookies(ambiente, usuario)
+                    if not cookies:
+                        logger.debug(f"[_verificar_e_renovar_sessoes] Sem cookies para {chave}, removendo da lista")
+                        with _lock_sessoes:
+                            _sessoes_ativas.pop(chave, None)
+                        continue
+                    
+                    # Verifica tempo restante
+                    tempo_restante = obter_tempo_expiracao_jwt(cookies)
+                    
+                    if tempo_restante is None:
+                        logger.debug(f"[_verificar_e_renovar_sessoes] Não foi possível obter tempo de expiração para {chave}")
+                        continue
+                    
+                    # Se está próximo de expirar, renova
+                    if tempo_restante <= TEMPO_ANTECEDENCIA_RENOVACAO:
+                        logger.info(f"[_verificar_e_renovar_sessoes] Sessão {chave} expira em {tempo_restante}s, renovando...")
+                        
+                        novos_cookies = renovar_sessao_keepalive(cookies, ambiente, usuario)
+                        
+                        if novos_cookies:
+                            logger.info(f"[_verificar_e_renovar_sessoes] Sessão {chave} renovada com sucesso")
+                        else:
+                            logger.warning(f"[_verificar_e_renovar_sessoes] Falha ao renovar sessão {chave} via keepAlive, será necessário re-login")
+                            # Remove da lista para forçar re-login na próxima operação
+                            with _lock_sessoes:
+                                _sessoes_ativas.pop(chave, None)
+                    else:
+                        minutos_restantes = tempo_restante // 60
+                        logger.debug(f"[_verificar_e_renovar_sessoes] Sessão {chave} válida por mais {minutos_restantes} minutos")
+                        
+                except Exception as e:
+                    logger.error(f"[_verificar_e_renovar_sessoes] Erro ao verificar sessão {chave}: {str(e)}")
+            
+            # Aguarda próximo ciclo de verificação
+            _parar_renovacao.wait(timeout=INTERVALO_VERIFICACAO)
+            
+        except Exception as e:
+            logger.error(f"[_verificar_e_renovar_sessoes] Erro no loop de renovação: {str(e)}")
+            _parar_renovacao.wait(timeout=INTERVALO_VERIFICACAO)
+    
+    logger.info("[_verificar_e_renovar_sessoes] Thread de renovação automática encerrada")
+
+
+def iniciar_renovacao_automatica():
+    """
+    Inicia a thread de renovação automática de cookies
+    
+    Deve ser chamada na inicialização da aplicação (ex: main.py)
+    """
+    global _thread_renovacao
+    
+    with _lock_sessoes:
+        if _thread_renovacao is not None and _thread_renovacao.is_alive():
+            logger.debug("[iniciar_renovacao_automatica] Thread já está em execução")
+            return
+        
+        _parar_renovacao.clear()
+        _thread_renovacao = threading.Thread(
+            target=_verificar_e_renovar_sessoes,
+            name="FluigSessionRenewal",
+            daemon=True
+        )
+        _thread_renovacao.start()
+        logger.info("[iniciar_renovacao_automatica] Renovação automática de cookies iniciada")
+
+
+def parar_renovacao_automatica():
+    """
+    Para a thread de renovação automática
+    
+    Pode ser chamada no shutdown da aplicação
+    """
+    global _thread_renovacao
+    
+    _parar_renovacao.set()
+    
+    if _thread_renovacao is not None:
+        _thread_renovacao.join(timeout=5)
+        logger.info("[parar_renovacao_automatica] Thread de renovação encerrada")
+        _thread_renovacao = None
+
+
+def registrar_sessao_ativa(ambiente: str = "PRD", usuario: Optional[str] = None):
+    """
+    Registra uma sessão para ser monitorada e renovada automaticamente
+    
+    Args:
+        ambiente: Ambiente ('PRD' ou 'QLD')
+        usuario: Nome do usuário
+    """
+    chave = _gerar_chave_sessao(ambiente, usuario)
+    
+    with _lock_sessoes:
+        _sessoes_ativas[chave] = {
+            'ambiente': ambiente,
+            'usuario': usuario,
+            'registrado_em': time.time()
+        }
+    
+    logger.debug(f"[registrar_sessao_ativa] Sessão {chave} registrada para renovação automática")
+
+
+def remover_sessao_ativa(ambiente: str = "PRD", usuario: Optional[str] = None):
+    """
+    Remove uma sessão do monitoramento automático
+    
+    Args:
+        ambiente: Ambiente ('PRD' ou 'QLD')
+        usuario: Nome do usuário
+    """
+    chave = _gerar_chave_sessao(ambiente, usuario)
+    
+    with _lock_sessoes:
+        if chave in _sessoes_ativas:
+            del _sessoes_ativas[chave]
+            logger.debug(f"[remover_sessao_ativa] Sessão {chave} removida do monitoramento")
+
+
+def obter_status_sessoes() -> Dict[str, Any]:
+    """
+    Retorna o status de todas as sessões ativas
+    
+    Returns:
+        Dicionário com informações das sessões ativas
+    """
+    with _lock_sessoes:
+        status = {}
+        for chave, sessao in _sessoes_ativas.items():
+            ambiente = sessao.get('ambiente', 'PRD')
+            usuario = sessao.get('usuario')
+            cookies = carregar_cookies(ambiente, usuario)
+            
+            tempo_restante = None
+            if cookies:
+                tempo_restante = obter_tempo_expiracao_jwt(cookies)
+            
+            status[chave] = {
+                'ambiente': ambiente,
+                'usuario': usuario,
+                'tempo_restante_segundos': tempo_restante,
+                'tempo_restante_minutos': tempo_restante // 60 if tempo_restante else None,
+                'registrado_em': datetime.fromtimestamp(sessao.get('registrado_em', 0)).isoformat()
+            }
+        
+        return {
+            'sessoes_ativas': len(status),
+            'intervalo_verificacao_segundos': INTERVALO_VERIFICACAO,
+            'antecedencia_renovacao_segundos': TEMPO_ANTECEDENCIA_RENOVACAO,
+            'thread_ativa': _thread_renovacao is not None and _thread_renovacao.is_alive(),
+            'sessoes': status
+        }
 
 
 def verificar_expiracao_cookies(cookies: List[Dict]) -> bool:
@@ -146,7 +507,7 @@ def garantir_autenticacao(ambiente: str = "PRD", forcar_login: bool = False, usu
     Garante que há autenticação válida para o ambiente
     
     Verifica cookies existentes e válidos. Se não houver ou estiverem expirados,
-    realiza login automaticamente.
+    tenta renovar via keepAlive. Se falhar, realiza login automaticamente.
     
     Args:
         ambiente: Ambiente ('PRD' ou 'QLD')
@@ -168,6 +529,7 @@ def garantir_autenticacao(ambiente: str = "PRD", forcar_login: bool = False, usu
             limpar_cookies(ambiente, usuario)
             if realizar_login(ambiente, usuario, senha):
                 cookies = carregar_cookies(ambiente, usuario)
+                registrar_sessao_ativa(ambiente, usuario)
                 return (True, cookies)
             return (False, None)
         
@@ -176,6 +538,7 @@ def garantir_autenticacao(ambiente: str = "PRD", forcar_login: bool = False, usu
             logger.info("[garantir_autenticacao] Cookies não encontrados, realizando login...")
             if realizar_login(ambiente, usuario, senha):
                 cookies = carregar_cookies(ambiente, usuario)
+                registrar_sessao_ativa(ambiente, usuario)
                 return (True, cookies)
             return (False, None)
         
@@ -185,17 +548,42 @@ def garantir_autenticacao(ambiente: str = "PRD", forcar_login: bool = False, usu
             logger.warning("[garantir_autenticacao] Erro ao carregar cookies, realizando login...")
             if realizar_login(ambiente, usuario, senha):
                 cookies = carregar_cookies(ambiente, usuario)
+                registrar_sessao_ativa(ambiente, usuario)
                 return (True, cookies)
             return (False, None)
 
         if verificar_expiracao_cookies(cookies):
+            # Verifica se está próximo de expirar e tenta renovar proativamente
+            tempo_restante = obter_tempo_expiracao_jwt(cookies)
+            if tempo_restante and tempo_restante <= TEMPO_ANTECEDENCIA_RENOVACAO:
+                logger.info(f"[garantir_autenticacao] JWT expira em {tempo_restante}s, tentando renovar via keepAlive...")
+                novos_cookies = renovar_sessao_keepalive(cookies, ambiente, usuario)
+                if novos_cookies:
+                    logger.info("[garantir_autenticacao] Sessão renovada via keepAlive")
+                    registrar_sessao_ativa(ambiente, usuario)
+                    return (True, novos_cookies)
+                else:
+                    logger.warning("[garantir_autenticacao] Falha no keepAlive, cookies ainda válidos")
+            
             logger.info(f"[garantir_autenticacao] Cookies válidos para ambiente {ambiente}, usuário: {usuario}")
+            registrar_sessao_ativa(ambiente, usuario)
             return (True, cookies)
         else:
-            logger.warning("[garantir_autenticacao] Cookies expirados, realizando novo login...")
+            # Cookies expirados - tenta renovar via keepAlive primeiro
+            logger.warning("[garantir_autenticacao] Cookies expirados, tentando renovar via keepAlive...")
+            novos_cookies = renovar_sessao_keepalive(cookies, ambiente, usuario)
+            
+            if novos_cookies and verificar_expiracao_cookies(novos_cookies):
+                logger.info("[garantir_autenticacao] Sessão recuperada via keepAlive!")
+                registrar_sessao_ativa(ambiente, usuario)
+                return (True, novos_cookies)
+            
+            # keepAlive falhou, faz login completo
+            logger.warning("[garantir_autenticacao] keepAlive falhou, realizando login completo...")
             limpar_cookies(ambiente, usuario)
             if realizar_login(ambiente, usuario, senha):
                 cookies = carregar_cookies(ambiente, usuario)
+                registrar_sessao_ativa(ambiente, usuario)
                 return (True, cookies)
             return (False, None)
             

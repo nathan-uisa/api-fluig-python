@@ -271,3 +271,36 @@ Versão 3.0.0
     * GET /listar_servicos: Retorna lista de serviços para autocomplete
     * POST /buscar_detalhes_servico: Busca detalhes de serviço por documentid
     * Verificação de cache local antes de buscar na API
+
+Versão 3.0.1
+  IMPLEMENTAÇÕES:
+  - Sistema de renovação automática de cookies:
+    * Thread em background que monitora e renova sessões do Fluig automaticamente
+    * Renovação via endpoint /portal/api/rest/session/keepAlive antes da expiração
+    * Renovação proativa quando JWT expira em menos de 5 minutos
+    * Verificação periódica a cada 60 segundos de todas as sessões ativas
+    * Elimina necessidade de re-login completo via Selenium quando cookies estão próximos de expirar
+  - Funções de renovação de sessão:
+    * renovar_sessao_keepalive() - Renova cookies via endpoint keepAlive do Fluig
+    * obter_tempo_expiracao_jwt() - Calcula tempo restante até expiração do JWT
+    * registrar_sessao_ativa() - Registra sessão para monitoramento automático
+    * iniciar_renovacao_automatica() - Inicia thread de renovação em background
+    * parar_renovacao_automatica() - Encerra thread de renovação graciosamente
+  - Melhorias no gerenciamento de autenticação:
+    * garantir_autenticacao() agora tenta renovar via keepAlive antes de fazer login completo
+    * Fallback automático para login via Selenium se keepAlive falhar
+    * Registro automático de sessões após login bem-sucedido
+    * Atualização automática de cookies salvos após renovação
+  - Endpoint de monitoramento de sessões:
+    * GET /api/v1/sessoes/status - Retorna status de todas as sessões ativas
+    * Informa tempo restante até expiração de cada sessão
+    * Mostra status da thread de renovação automática
+    * Útil para monitoramento e debug do sistema de autenticação
+  - Configurações de renovação:
+    * TEMPO_ANTECEDENCIA_RENOVACAO: 300 segundos (5 minutos antes de expirar)
+    * INTERVALO_VERIFICACAO: 60 segundos (verificação periódica)
+    * TIMEOUT_KEEPALIVE: 30 segundos (timeout da requisição)
+  - Integração com ciclo de vida da aplicação:
+    * Thread de renovação iniciada automaticamente no startup da API
+    * Thread encerrada graciosamente no shutdown da aplicação
+    * Uso de lifespan events do FastAPI para gerenciamento automático
