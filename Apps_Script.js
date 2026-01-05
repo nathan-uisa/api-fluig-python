@@ -77,38 +77,19 @@ function API_MAIN() {
 
     if (resposta) {
       try {
-        // A API pode retornar o processInstanceId diretamente como número ou como JSON
-        var respostaProcessada = null;
-        
-        // Tentar parsear como JSON primeiro
-        try {
-          respostaProcessada = JSON.parse(resposta);
-          console.log("Resposta da API (JSON): " + JSON.stringify(respostaProcessada));
-        } catch (e) {
-          // Se não for JSON, pode ser um número direto
-          var numeroResposta = parseFloat(resposta.trim());
-          if (!isNaN(numeroResposta)) {
-            respostaProcessada = numeroResposta;
-            console.log("Resposta da API (número): " + respostaProcessada);
-          } else {
-            console.log("Resposta da API (texto): " + resposta);
-            respostaProcessada = resposta;
-          }
-        }
-        
-        processarRespostaChamado(respostaProcessada, emailRemetente, emailSubject);
+        var respostaJson = JSON.parse(resposta);
+        console.log("Resposta da API: " + JSON.stringify(respostaJson));
+        processarRespostaChamado(respostaJson, emailRemetente, emailSubject);
       } catch (e) {
-        console.log("Erro ao processar resposta: " + e.message);
+        console.log("Erro ao processar JSON de resposta: " + e.message);
       }
     }
   }
 }
 
 function API_EMAIL_CHAMADO(Assunto, Corpo, Email, message) {
-  // URLs atualizadas para a nova versão da API (v2.0.0)
-  var base_url = "https://prd-api-fluig-python-186726132534.us-east1.run.app/";
-  var url_uisa = base_url + "/api/v1/fluig/prd/chamados/abrir";
-  var url_movti = base_url + "/api/v1/terceiros/movit/chamados/abrir-classificado";
+  var url_uisa = "https://api-fluig-python-186726132534.us-east1.run.app/fluig/chamado/abrir";
+  var url_movti = "https://api-fluig-python-186726132534.us-east1.run.app/terceiro/movit/chamado/abrir-classificado";
 
   var telefoneDoContato = buscarTelefoneNoDiretorio(Email);
 
@@ -196,16 +177,8 @@ function API_EMAIL_CHAMADO(Assunto, Corpo, Email, message) {
     console.log("Body Retorno: " + responseBody);
 
     if (responseCode === 200 || responseCode === 201) {
-      // A API retorna o processInstanceId diretamente como número ou JSON
       return responseBody;
     } else {
-      // Tentar extrair mensagem de erro se disponível
-      try {
-        var errorJson = JSON.parse(responseBody);
-        console.log("Erro da API: " + (errorJson.detail || errorJson.message || JSON.stringify(errorJson)));
-      } catch (e) {
-        console.log("Resposta de erro não é JSON válido");
-      }
       console.log("Falha na API. Código: " + responseCode);
       return null;
     }

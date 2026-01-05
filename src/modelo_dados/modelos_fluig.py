@@ -58,6 +58,7 @@ def DatasetConfig():
             'datasetId': 'colleague',
             'campo_email': 'mail',
             'campo_nome': 'colleagueName',
+            'campo_currentProject': 'currentProject',
             'nome_dataset': 'colleague',
             'url': '/api/public/ecm/dataset/search'
         },
@@ -75,4 +76,5 @@ def DatasetConfig():
             'nome_dataset': 'funcionarios',
             'url': '/api/public/ecm/dataset/search'
         }
+        
     }

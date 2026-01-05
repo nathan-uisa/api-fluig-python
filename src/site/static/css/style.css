@@ -439,6 +439,26 @@ body:has(.login-container) {
     color: var(--required);
 }
 
+.field-error {
+    display: block;
+    color: var(--error-text);
+    font-size: 13px;
+    margin-top: 4px;
+    padding: 4px 0;
+    line-height: 1.4;
+}
+
+.form-group input:invalid:not(:placeholder-shown),
+.form-group input.error-field {
+    border-color: var(--error-border);
+    background-color: var(--error-bg);
+}
+
+.form-group input.error-field:focus {
+    border-color: var(--error-border);
+    box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.2);
+}
+
 .form-text {
     color: var(--text-placeholder);
     font-size: 12px;
@@ -887,6 +907,35 @@ label:has(input[type="checkbox"]#ignorar_primeira_linha):hover {
     color: var(--text-primary);
 }
 
-.dropdown-item:hover {
-    background-color: var(--bg-tertiary);
+/* Modal de Loading com Blur */
+.modal-overlay-blur {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+}
+
+.modal-loading-content {
+    background: var(--bg-section);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--border-radius);
+    padding: 40px 60px;
+    text-align: center;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
+    min-width: 300px;
+}
+
+/* Aplicar blur ao conteúdo quando modal está ativo */
+body.modal-loading-active .main-wrapper {
+    filter: blur(3px);
+    pointer-events: none;
+    transition: filter 0.3s ease;
 }

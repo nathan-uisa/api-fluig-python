@@ -20,17 +20,20 @@ API REST desenvolvida com FastAPI para integração com o sistema Fluig, permiti
 - **Abertura de Chamados**: Criação automática de chamados no Fluig (PRD e QLD), com suporte a chamados classificados e não classificados
 - **Webapp Integrado**: Interface web completa para criação de chamados com autenticação Google OAuth 2.0
 - **Geração em Lote**: Criação de múltiplos chamados via planilha Excel com processamento de placeholders
+- **Campo Solicitante**: Suporte a Chapa, email ou placeholders com busca automática do nome formatado
 - **Autocomplete de Serviços**: Busca e seleção inteligente de serviços com preenchimento automático de campos
 - **Modal de Processamento**: Interface visual para acompanhamento da criação de chamados em tempo real
+- **Visualização Prévia**: Prévia dos chamados incluindo título, descrição e solicitante processado
 - **Gerenciamento de Serviços**: Consulta de lista de serviços e detalhes de serviços específicos
-- **Consulta de Datasets**: Busca de dados em datasets do Fluig (colleague, funcionários, aprovadores)
+- **Consulta de Datasets**: Busca de dados em datasets do Fluig (colleague, funcionários, aprovadores) com suporte a busca por CHAPA
 - **Detalhes de Chamados**: Obtenção de detalhes completos de chamados existentes
 - **Integração com Terceiros**: Suporte especializado para integração com Movti, incluindo extração inteligente de usuários via IA
-- **Autenticação Automática**: Sistema de gerenciamento de cookies com validação de expiração e re-autenticação automática
+- **Autenticação Automática**: Sistema de gerenciamento de cookies com validação de expiração e re-autenticação automática via navegador
 - **Inteligência Artificial**: Extração de informações de chamados usando Google Generative AI (Gemini)
 - **Autenticação via API Key**: Proteção de todas as rotas com API Key
 - **Logs Completos**: Sistema abrangente de logging com rastreamento detalhado em todas as operações
 - **Validação Robusta**: Tratamento de erros e validações em todas as etapas do processo
+- **Renovação Automática Frontend**: Renovação periódica de sessão via webapp (a cada 10 minutos)
 
 ## Requisitos
 
@@ -155,7 +158,11 @@ Acesse a interface web para criação de chamados:
 - Autenticação via Google OAuth 2.0
 - Criação de chamados únicos ou em lote via planilha Excel
 - Autocomplete de serviços com preenchimento automático de campos
+- Campo "Solicitante" com suporte a chapa, email ou placeholders da planilha
+- Busca automática do nome formatado do solicitante (primeira letra maiúscula)
+- Campo UsuarioAtendido preenchido automaticamente quando solicitante é informado
 - Modal de processamento com acompanhamento em tempo real
+- Visualização prévia dos chamados incluindo título, descrição e solicitante
 - Suporte a placeholders em planilhas (`<A>`, `<B>`, etc.)
 
 ## Endpoints
@@ -368,7 +375,10 @@ Busca dados em um dataset do Fluig usando email ou chapa/nome. O ambiente é esp
 ```
 
 **Datasets Disponíveis:**
-- `colleague`: Busca por colaborador (email ou nome)
+- `colleague`: Busca por colaborador (email, nome ou chapa)
+  - Email: usa campo `mail`
+  - chapa (número): usa campo `currentProject`
+  - Nome (texto): usa campo `colleagueName`
 - `ds_funcionarios`: Busca por funcionário (email ou chapa)
 - `ds_aprovadores`: Busca por aprovador (email ou nome)
 
@@ -471,14 +481,20 @@ Cria um chamado único ou processa planilha para criação em lote.
 - **POST** `/chamado/preview`: Gera prévia dos chamados com placeholders substituídos
 - **GET** `/listar_servicos`: Retorna lista de serviços para autocomplete
 - **POST** `/buscar_detalhes_servico`: Busca detalhes de um serviço por documentid
+- **POST** `/renovar_sessao`: Renova sessão do Fluig (renovação automática a cada 10 minutos)
 
 **Características:**
 - Autenticação via sessão (Google OAuth 2.0)
 - Busca automática de dados do funcionário via dataset interno
 - Suporte a chamados classificados e não classificados
 - Processamento de placeholders em planilhas (`<A>`, `<B>`, etc.)
+- Campo "Solicitante" com suporte a chapa, email ou placeholders
+- Busca automática do nome formatado do solicitante via dataset colleague
+- Campo UsuarioAtendido preenchido automaticamente com nome formatado corretamente
 - Modal de processamento com feedback em tempo real
+- Visualização prévia dos chamados incluindo solicitante processado
 - Cache local de detalhes de serviços
+- Renovação automática de sessão a cada 10 minutos via frontend
 
 ---
 
@@ -499,6 +515,7 @@ api-fluig-python/
 │   │   ├── web_auth_manager.py      # Gerenciador centralizado de autenticação
 │   │   ├── web_cookies.py           # Gerenciamento de cookies (salvar, carregar, validar)
 │   │   ├── web_driver.py            # Configuração do ChromeDriver/Selenium
+│   │   ├── web_driver_manager.py    # Gerenciador de drivers
 │   │   ├── web_login_fluig.py       # Login via Selenium (unificado para PRD e QLD)
 │   │   ├── web_servicos_fluig.py    # Funções para consulta de serviços
 │   │   └── web_chamado_fluig.py     # Funções para consulta de chamados
@@ -582,6 +599,9 @@ O sistema utiliza autenticação via cookies obtidos através de login via Selen
 - **Gerenciamento de Cookies**: Cookies são salvos em `src/json/cookies_{usuario}_{ambiente}.json`
 - **Validação de Expiração**: O sistema verifica automaticamente se os cookies estão expirados (incluindo JWT)
 - **Re-autenticação Automática**: Se os cookies estiverem expirados ou inválidos, o sistema realiza login novamente automaticamente
+- **Renovação via Navegador**: Prioriza renovação de cookies diretamente do navegador
+- **Fallback para keepAlive**: Se navegador não estiver disponível, usa endpoint keepAlive como fallback
+- **Renovação Automática**: Thread em background renova sessões automaticamente antes da expiração
 - **Usuários Separados**: Cookies são gerenciados separadamente para cada usuário e ambiente
 - **Colleague ID por Ambiente**: 
   - Ambiente PRD: usa `ADMIN_COLLEAGUE_ID`
@@ -707,43 +727,5 @@ curl -X POST "http://127.0.0.1:3000/api/v1/terceiros/movit/chamados/abrir-classi
 
 Os logs são salvos automaticamente na pasta `logs/` na raiz do projeto.
 
-## Versão
-
-**Versão Atual: 3.0.0**
-
-### Mudanças na Versão 3.0.0 (Padronização):
-- ✅ **Padronização de Rotas**: Todas as rotas agora seguem o padrão `/api/v1/fluig/{ambiente}/...`
-- ✅ **Ambiente como Path Parameter**: Ambiente (`prd` ou `qld`) agora é especificado no path da URL
-- ✅ **Versionamento de API**: Implementado prefixo `/api/v1` para versionamento
-- ✅ **Estrutura RESTful**: Hierarquia clara e semântica para melhor organização
-- ✅ **Rotas Unificadas**: Rotas PRD e QLD unificadas em um único endpoint com parâmetro de ambiente
-- ✅ **Rotas de Terceiros**: Padronizadas para `/api/v1/terceiros/{provider}/...`
-- ✅ **Webapp Integrado**: Interface web completa para criação de chamados com autenticação Google OAuth 2.0
-- ✅ **Geração em Lote**: Suporte a criação de múltiplos chamados via planilha Excel
-- ✅ **Autocomplete de Serviços**: Busca e seleção inteligente de serviços com preenchimento automático
-- ✅ **Modal de Processamento**: Interface visual para acompanhamento da criação de chamados em tempo real
-- ✅ **Refatoração de Modelos**: Modelos de dados organizados em `src/modelo_dados/` (incluindo `modelo_sites.py`)
-- ✅ **Otimização de Performance**: Uso direto de `FluigCore` em vez de requisições HTTP internas
-- ✅ **Compatibilidade**: Mantida estrutura anterior para facilitar migração gradual
-
-### Versões Anteriores (2.1.1 e anteriores):
-
-Principais mudanças nas versões anteriores:
-- **Rotas QLD Completas**: Implementação completa de rotas para ambiente de qualidade
-  - `/fluigqld/chamado/abrir` - Abertura de chamados sem classificação
-  - `/fluigqld/chamado/detalhes` - Detalhes de chamados
-  - `/fluigqld/servicos` - Lista de serviços
-  - `/fluigqld/servicos/detalhes` - Detalhes de serviços
-  - `/fluigqld/datasets/buscar` - Busca em datasets
-- **Isolamento de Ambientes**: Garantia de que rotas QLD não utilizam dados do ambiente PRD
-- **Consolidação de Login**: Unificação dos módulos de login em um único arquivo com seleção automática de ambiente
-- **Seleção Dinâmica de Credenciais**: Sistema seleciona automaticamente credenciais corretas baseado no ambiente
-- **Centralização de Funções**: Funções de salvamento JSON centralizadas em `json_utils.py`
-- **Correção de Colleague ID**: Seleção automática do colleague ID correto por ambiente
-- Sistema de autenticação via cookies com Selenium
-- Gerenciamento automático de cookies com validação de expiração (incluindo JWT)
-- Suporte a múltiplos usuários com cookies separados por ambiente
-- Integração com Movti usando IA para extração de usuários
-- Estrutura modular e organizada
 
 Para ver o histórico completo de versões, consulte o arquivo - `version`.

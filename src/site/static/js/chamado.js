@@ -23,6 +23,29 @@ document.addEventListener('DOMContentLoaded', function() {
     const servicoIdInput = document.getElementById('servico_id');
     const servicoDropdown = document.getElementById('servico-dropdown');
     
+    // Listener para remover erro visual do telefone quando o usuário digitar
+    const telefoneInput = document.getElementById('telefone_contato');
+    const telefoneError = document.getElementById('telefone-error');
+    if (telefoneInput && telefoneError) {
+        telefoneInput.addEventListener('input', function() {
+            if (this.value && this.value.trim()) {
+                // Remover erro visual quando o campo for preenchido
+                this.style.borderColor = '';
+                this.style.backgroundColor = '';
+                telefoneError.style.display = 'none';
+            }
+        });
+        
+        telefoneInput.addEventListener('blur', function() {
+            if (!this.value || !this.value.trim()) {
+                // Mostrar erro visual quando o campo perder o foco e estiver vazio
+                this.style.borderColor = 'var(--error-border)';
+                this.style.backgroundColor = 'var(--error-bg)';
+                telefoneError.style.display = 'block';
+            }
+        });
+    }
+    
     if (servicoInput && servicoDropdown) {
         // Carrega os serviços ao iniciar
         carregarServicos();
@@ -158,6 +181,7 @@ document.addEventListener('DOMContentLoaded', function() {
         btnPreview.addEventListener('click', async function() {
             const titulo = document.getElementById('ds_titulo').value;
             const descricao = document.getElementById('ds_chamado').value;
+            const solicitante = document.getElementById('solicitante') ? document.getElementById('solicitante').value : '';
             const qtdChamados = parseInt(document.getElementById('qtd_chamados').value) || 5;
             const ignorarPrimeiraLinha = document.getElementById('ignorar_primeira_linha').checked;
 
@@ -181,6 +205,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     body: JSON.stringify({
                         titulo: titulo,
                         descricao: descricao,
+                        solicitante: solicitante || null,
                         qtd_chamados: qtdChamados,
                         ignorar_primeira_linha: ignorarPrimeiraLinha
                     })
@@ -220,10 +245,16 @@ document.addEventListener('DOMContentLoaded', function() {
                         html += `<strong style="color: var(--text-primary); font-size: 14px; display: block; margin-bottom: 4px;">Título:</strong>`;
                         html += `<div style="color: var(--text-secondary); padding: 10px; background: var(--bg-input); border-radius: var(--border-radius); border: 1px solid var(--border-primary);">${escapeHtml(item.titulo || '(vazio)')}</div>`;
                         html += `</div>`;
-                        html += `<div>`;
+                        html += `<div style="margin-bottom: 8px;">`;
                         html += `<strong style="color: var(--text-primary); font-size: 14px; display: block; margin-bottom: 4px;">Descrição:</strong>`;
                         html += `<div style="color: var(--text-secondary); padding: 10px; background: var(--bg-input); border-radius: var(--border-radius); border: 1px solid var(--border-primary); white-space: pre-wrap;">${escapeHtml(item.descricao || '(vazio)')}</div>`;
                         html += `</div>`;
+                        if (item.solicitante !== undefined && item.solicitante !== null && item.solicitante !== '') {
+                            html += `<div>`;
+                            html += `<strong style="color: var(--text-primary); font-size: 14px; display: block; margin-bottom: 4px;">Solicitante:</strong>`;
+                            html += `<div style="color: var(--text-secondary); padding: 10px; background: var(--bg-input); border-radius: var(--border-radius); border: 1px solid var(--border-primary);">${escapeHtml(item.solicitante)}</div>`;
+                            html += `</div>`;
+                        }
                         html += `</div>`;
                     });
                 } else {
@@ -267,6 +298,50 @@ document.addEventListener('DOMContentLoaded', function() {
     if (formChamado) {
         formChamado.addEventListener('submit', async function(e) {
             e.preventDefault();
+            
+            // Validação do campo telefone
+            const telefoneInput = document.getElementById('telefone_contato');
+            const telefoneError = document.getElementById('telefone-error');
+            
+            if (!telefoneInput || !telefoneInput.value || !telefoneInput.value.trim()) {
+                // Mostrar erro visual
+                if (telefoneInput) {
+                    telefoneInput.style.borderColor = 'var(--error-border)';
+                    telefoneInput.style.backgroundColor = 'var(--error-bg)';
+                }
+                if (telefoneError) {
+                    telefoneError.style.display = 'block';
+                }
+                
+                // Scroll para o campo
+                if (telefoneInput) {
+                    telefoneInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    telefoneInput.focus();
+                }
+                
+                // Mostrar mensagem de erro no topo
+                const errorFlash = document.createElement('div');
+                errorFlash.className = 'flash error';
+                errorFlash.textContent = '⚠️ O campo Telefone de Contato é obrigatório para abrir um chamado.';
+                const formSection = document.querySelector('.form-section-box');
+                if (formSection && formSection.parentNode) {
+                    formSection.parentNode.insertBefore(errorFlash, formSection);
+                    setTimeout(() => {
+                        errorFlash.remove();
+                    }, 5000);
+                }
+                
+                return;
+            } else {
+                // Remover erro visual se o campo estiver preenchido
+                if (telefoneInput) {
+                    telefoneInput.style.borderColor = '';
+                    telefoneInput.style.backgroundColor = '';
+                }
+                if (telefoneError) {
+                    telefoneError.style.display = 'none';
+                }
+            }
             
             const titulo = document.getElementById('ds_titulo').value;
             const descricao = document.getElementById('ds_chamado').value;
@@ -620,6 +695,13 @@ function buscarESelecionarServico(documentid) {
         return;
     }
     
+    // Mostrar modal de loading com blur
+    const modalLoadingServico = document.getElementById('modal-loading-servico');
+    if (modalLoadingServico) {
+        modalLoadingServico.style.display = 'flex';
+        document.body.classList.add('modal-loading-active');
+    }
+    
     fetch('/buscar_detalhes_servico', {
         method: 'POST',
         headers: {
@@ -631,6 +713,12 @@ function buscarESelecionarServico(documentid) {
     })
     .then(response => response.json())
     .then(data => {
+        // Ocultar modal de loading
+        if (modalLoadingServico) {
+            modalLoadingServico.style.display = 'none';
+            document.body.classList.remove('modal-loading-active');
+        }
+        
         if (data.sucesso && data.servico) {
             preencherCamposServico(data.servico);
             const fonte = data.fonte || 'desconhecida';
@@ -640,6 +728,11 @@ function buscarESelecionarServico(documentid) {
         }
     })
     .catch(error => {
+        // Ocultar modal de loading em caso de erro
+        if (modalLoadingServico) {
+            modalLoadingServico.style.display = 'none';
+            document.body.classList.remove('modal-loading-active');
+        }
         console.error('Erro ao buscar detalhes do serviço:', error);
     });
 }
@@ -715,5 +808,65 @@ function escapeHtml(text) {
         "'": '&#039;'
     };
     return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+}
+
+// Variáveis para renovação periódica de sessão
+let intervaloRenovacaoSessao = null;
+const INTERVALO_RENOVACAO_MINUTOS = 10; // Renovar a cada 10 minutos
+
+// Função para renovar sessão do Fluig
+async function renovarSessaoFluig() {
+    try {
+        const response = await fetch('/renovar_sessao', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.sucesso) {
+            const tempoRestante = data.tempo_restante_minutos || 0;
+            console.log(`[Renovação de Sessão] Sessão renovada com sucesso. Tempo restante: ${tempoRestante} minutos`);
+        } else {
+            console.warn(`[Renovação de Sessão] Falha ao renovar: ${data.erro || 'Erro desconhecido'}`);
+        }
+    } catch (error) {
+        console.error('[Renovação de Sessão] Erro ao renovar sessão:', error);
+    }
+}
+
+// Iniciar renovação automática de sessão
+function iniciarRenovacaoAutomaticaSessao() {
+    // Limpar intervalo anterior se existir
+    if (intervaloRenovacaoSessao) {
+        clearInterval(intervaloRenovacaoSessao);
+    }
+    
+    // Renovar imediatamente ao carregar a página
+    renovarSessaoFluig();
+    
+    // Configurar renovação periódica (a cada X minutos)
+    const intervaloMs = INTERVALO_RENOVACAO_MINUTOS * 60 * 1000;
+    intervaloRenovacaoSessao = setInterval(renovarSessaoFluig, intervaloMs);
+    
+    console.log(`[Renovação de Sessão] Renovação automática iniciada - Renovando a cada ${INTERVALO_RENOVACAO_MINUTOS} minutos`);
+}
+
+// Parar renovação automática (útil se necessário)
+function pararRenovacaoAutomaticaSessao() {
+    if (intervaloRenovacaoSessao) {
+        clearInterval(intervaloRenovacaoSessao);
+        intervaloRenovacaoSessao = null;
+        console.log('[Renovação de Sessão] Renovação automática parada');
+    }
+}
+
+// Iniciar renovação automática quando a página carregar
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', iniciarRenovacaoAutomaticaSessao);
+} else {
+    iniciarRenovacaoAutomaticaSessao();
 }
 

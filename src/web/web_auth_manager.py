@@ -13,7 +13,8 @@ from src.web.web_cookies import (
     verificar_cookies_validos,
     limpar_cookies,
     salvar_cookies,
-    cookies_para_requests
+    cookies_para_requests,
+    obter_cookies
 )
 from src.modelo_dados.modelo_settings import ConfigEnvSetings
 
@@ -113,10 +114,9 @@ def renovar_sessao_keepalive(
     usuario: Optional[str] = None
 ) -> Optional[List[Dict]]:
     """
-    Renova a sessão do Fluig via endpoint keepAlive
+    Renova a sessão do Fluig via navegador aberto (mais seguro) ou endpoint keepAlive (fallback)
     
-    Esta função faz uma requisição GET ao endpoint keepAlive que retorna
-    novos cookies (JSESSIONID e jwt.token) sem precisar fazer login completo.
+    Prioriza renovação via navegador aberto. Se não houver navegador aberto, usa keepAlive.
     
     Args:
         cookies: Lista de cookies atuais
@@ -126,6 +126,22 @@ def renovar_sessao_keepalive(
     Returns:
         Lista de cookies atualizados ou None se falhou
     """
+    # Primeiro tenta renovar via navegador aberto (mais seguro)
+    try:
+        from src.web.web_driver_manager import renovar_cookies_do_navegador
+        cookies_navegador = renovar_cookies_do_navegador(ambiente, usuario)
+        
+        if cookies_navegador:
+            tempo_restante = obter_tempo_expiracao_jwt(cookies_navegador)
+            if tempo_restante:
+                logger.info(f"[renovar_sessao_keepalive] Sessão renovada via navegador! JWT válido por mais {tempo_restante // 60} minutos")
+            else:
+                logger.info("[renovar_sessao_keepalive] Sessão renovada via navegador com sucesso")
+            return cookies_navegador
+    except Exception as e:
+        logger.debug(f"[renovar_sessao_keepalive] Falha ao renovar via navegador, tentando keepAlive: {str(e)}")
+    
+    # Fallback: usa endpoint keepAlive se navegador não estiver disponível
     try:
         url_base = _obter_url_base(ambiente)
         timestamp = int(time.time() * 1000)
@@ -140,7 +156,7 @@ def renovar_sessao_keepalive(
             'X-Requested-With': 'XMLHttpRequest'
         }
         
-        logger.info(f"[renovar_sessao_keepalive] Renovando sessão para {ambiente}, usuário: {usuario}")
+        logger.info(f"[renovar_sessao_keepalive] Renovando sessão via keepAlive para {ambiente}, usuário: {usuario}")
         
         response = requests.get(
             url, 
@@ -172,9 +188,9 @@ def renovar_sessao_keepalive(
         if salvar_cookies(cookies_atualizados, ambiente, usuario):
             tempo_restante = obter_tempo_expiracao_jwt(cookies_atualizados)
             if tempo_restante:
-                logger.info(f"[renovar_sessao_keepalive] Sessão renovada! JWT válido por mais {tempo_restante // 60} minutos")
+                logger.info(f"[renovar_sessao_keepalive] Sessão renovada via keepAlive! JWT válido por mais {tempo_restante // 60} minutos")
             else:
-                logger.info("[renovar_sessao_keepalive] Sessão renovada com sucesso")
+                logger.info("[renovar_sessao_keepalive] Sessão renovada via keepAlive com sucesso")
             return cookies_atualizados
         else:
             logger.warning("[renovar_sessao_keepalive] Falha ao salvar cookies atualizados")
@@ -243,6 +259,7 @@ def _atualizar_cookies(cookies_atuais: List[Dict], novos_valores: Dict[str, str]
 def _verificar_e_renovar_sessoes():
     """
     Thread que verifica periodicamente e renova sessões ativas antes de expirarem
+    Usa navegador aberto diretamente para renovação, sem carregar cookies do arquivo
     """
     logger.info("[_verificar_e_renovar_sessoes] Thread de renovação automática iniciada")
     
@@ -256,37 +273,52 @@ def _verificar_e_renovar_sessoes():
                     ambiente = sessao.get('ambiente', 'PRD')
                     usuario = sessao.get('usuario')
                     
-                    # Carrega cookies atuais
-                    cookies = carregar_cookies(ambiente, usuario)
-                    if not cookies:
-                        logger.debug(f"[_verificar_e_renovar_sessoes] Sem cookies para {chave}, removendo da lista")
+                    # Verifica se há driver/navegador ativo
+                    from src.web.web_driver_manager import obter_driver_ativo, renovar_cookies_do_navegador
+                    driver = obter_driver_ativo(ambiente, usuario)
+                    
+                    if not driver:
+                        logger.debug(f"[_verificar_e_renovar_sessoes] Sem driver ativo para {chave}, removendo da lista")
                         with _lock_sessoes:
                             _sessoes_ativas.pop(chave, None)
                         continue
                     
-                    # Verifica tempo restante
-                    tempo_restante = obter_tempo_expiracao_jwt(cookies)
-                    
-                    if tempo_restante is None:
-                        logger.debug(f"[_verificar_e_renovar_sessoes] Não foi possível obter tempo de expiração para {chave}")
-                        continue
-                    
-                    # Se está próximo de expirar, renova
-                    if tempo_restante <= TEMPO_ANTECEDENCIA_RENOVACAO:
-                        logger.info(f"[_verificar_e_renovar_sessoes] Sessão {chave} expira em {tempo_restante}s, renovando...")
+                    # Obtém cookies diretamente do navegador para verificar expiração
+                    try:
+                        cookies_navegador = obter_cookies(driver)
+                        if not cookies_navegador:
+                            logger.debug(f"[_verificar_e_renovar_sessoes] Não foi possível obter cookies do navegador para {chave}")
+                            continue
                         
-                        novos_cookies = renovar_sessao_keepalive(cookies, ambiente, usuario)
+                        # Verifica tempo restante
+                        tempo_restante = obter_tempo_expiracao_jwt(cookies_navegador)
                         
-                        if novos_cookies:
-                            logger.info(f"[_verificar_e_renovar_sessoes] Sessão {chave} renovada com sucesso")
+                        if tempo_restante is None:
+                            logger.debug(f"[_verificar_e_renovar_sessoes] Não foi possível obter tempo de expiração para {chave}")
+                            continue
+                        
+                        # Se está próximo de expirar, renova via navegador
+                        if tempo_restante <= TEMPO_ANTECEDENCIA_RENOVACAO:
+                            logger.info(f"[_verificar_e_renovar_sessoes] Sessão {chave} expira em {tempo_restante}s, renovando via navegador...")
+                            
+                            novos_cookies = renovar_cookies_do_navegador(ambiente, usuario)
+                            
+                            if novos_cookies:
+                                logger.info(f"[_verificar_e_renovar_sessoes] Sessão {chave} renovada com sucesso via navegador")
+                            else:
+                                logger.warning(f"[_verificar_e_renovar_sessoes] Falha ao renovar sessão {chave} via navegador, será necessário re-login")
+                                # Remove da lista para forçar re-login na próxima operação
+                                with _lock_sessoes:
+                                    _sessoes_ativas.pop(chave, None)
                         else:
-                            logger.warning(f"[_verificar_e_renovar_sessoes] Falha ao renovar sessão {chave} via keepAlive, será necessário re-login")
-                            # Remove da lista para forçar re-login na próxima operação
-                            with _lock_sessoes:
-                                _sessoes_ativas.pop(chave, None)
-                    else:
-                        minutos_restantes = tempo_restante // 60
-                        logger.debug(f"[_verificar_e_renovar_sessoes] Sessão {chave} válida por mais {minutos_restantes} minutos")
+                            minutos_restantes = tempo_restante // 60
+                            logger.debug(f"[_verificar_e_renovar_sessoes] Sessão {chave} válida por mais {minutos_restantes} minutos")
+                    
+                    except Exception as e:
+                        logger.warning(f"[_verificar_e_renovar_sessoes] Erro ao verificar cookies do navegador para {chave}: {str(e)}")
+                        # Remove sessão se navegador não está mais acessível
+                        with _lock_sessoes:
+                            _sessoes_ativas.pop(chave, None)
                         
                 except Exception as e:
                     logger.error(f"[_verificar_e_renovar_sessoes] Erro ao verificar sessão {chave}: {str(e)}")
@@ -612,8 +644,8 @@ def realizar_login(ambiente: str = "PRD", usuario: str = None, senha: str = None
             logger.error("[realizar_login] Falha ao realizar login")
             return False
         
-
-        driver.quit()
+        # MODIFICADO: Remover comentário quando o driver for fechado automaticamente
+        #driver.quit()
         logger.info("[realizar_login] Login concluído com sucesso")
         return True
         

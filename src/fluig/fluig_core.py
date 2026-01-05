@@ -1,3 +1,4 @@
+from typing import Optional
 from src.modelo_dados.modelo_settings import ConfigEnvSetings
 from src.modelo_dados.modelos_fluig import DatasetConfig
 from src.utilitarios_centrais.logger import logger
@@ -84,14 +85,25 @@ class FluigCore():
         
         config = datasets[dataset_id]
         logger.info(f"[Dataset_config] Configuração do dataset carregada: {config.get('nome_dataset', dataset_id)}")
+        
+        # Determinar tipo de busca e campo a usar
+        user_stripped = user.strip()
+        
         if '@' in user:
+            # Busca por email
             campo_busca = config['campo_email']
             tipo_busca = "email"
             logger.info(f"[Dataset_config] Tipo de busca detectado: {tipo_busca} (contém '@')")
+        elif dataset_id == 'colleague' and 'campo_currentProject' in config and user_stripped.isdigit():
+            # Busca por CHAPA (número) no dataset colleague - usar currentProject
+            campo_busca = config['campo_currentProject']
+            tipo_busca = "chapa (currentProject)"
+            logger.info(f"[Dataset_config] Tipo de busca detectado: {tipo_busca} (CHAPA numérica '{user_stripped}' no dataset colleague)")
         else:
+            # Busca por nome (não é email e não é número)
             campo_busca = config['campo_nome']
-            tipo_busca = "nome/chapa"
-            logger.info(f"[Dataset_config] Tipo de busca detectado: {tipo_busca} (não contém '@')")
+            tipo_busca = "nome"
+            logger.info(f"[Dataset_config] Tipo de busca detectado: {tipo_busca} (nome/chapa)")
         
         logger.debug(f"[Dataset_config] Campo de busca selecionado: {campo_busca}")
         parametro = {
@@ -121,7 +133,7 @@ class FluigCore():
             logger.error(f"[Dataset_config] Erro na requisição - Status: {resposta.status_code}")
             return resposta
 
-    def AberturaDeChamado(self,tipo_chamado: str, Item: any):
+    def AberturaDeChamado(self,tipo_chamado: str, Item: any, usuario_atendido: Optional[str] = None):
         """
             ITEM
             class AberturaChamadoClassificado(BaseModel):
@@ -135,8 +147,9 @@ class FluigCore():
         
         Args:
             tipo_chamado: Tipo de chamado ('classificado' ou 'funcional')
+            usuario_atendido: Nome do usuário atendido (opcional)
         """
-        logger.info(f"[AberturaDeChamado] Iniciando abertura de chamado - Tipo: {tipo_chamado}")
+        logger.info(f"[AberturaDeChamado] Iniciando abertura de chamado - Tipo: {tipo_chamado}, UsuarioAtendido: {usuario_atendido}")
         url = self.url_base + "/process-management/api/v2/processes/Abertura%20de%20Chamados/start"
         
         # Obtém autenticação baseado no ambiente
@@ -160,12 +173,12 @@ class FluigCore():
         from src.utilitarios_centrais.payloads import PayloadChamadoClassificado, PayloadChamadoNormal
         
         if tipo_chamado == "classificado":
-            payload = PayloadChamadoClassificado(Item, ambiente=self.ambiente)
+            payload = PayloadChamadoClassificado(Item, ambiente=self.ambiente, usuario_atendido=usuario_atendido)
             if not payload:
                 logger.error("[AberturaDeChamado] Falha ao montar payload do chamado classificado")
                 raise ValueError("[AberturaDeChamado] Falha ao montar payload do chamado classificado")
         elif tipo_chamado == "normal":
-            payload = PayloadChamadoNormal(Item, ambiente=self.ambiente)
+            payload = PayloadChamadoNormal(Item, ambiente=self.ambiente, usuario_atendido=usuario_atendido)
             if not payload:
                 logger.error("[AberturaDeChamado] Falha ao montar payload do chamado normal")
                 raise ValueError("[AberturaDeChamado] Falha ao montar payload do chamado normal")

@@ -71,7 +71,10 @@ def fazer_login_fluig(ambiente: str = "PRD", usuario: str = None, senha: str = N
         
         if not campo_usuario:
             logger.error("[fazer_login_fluig] Campo de usuário não encontrado")
-            driver.quit()
+            try:
+                driver.quit()
+            except:
+                pass
             return None
         
         campo_usuario.clear()
@@ -97,7 +100,10 @@ def fazer_login_fluig(ambiente: str = "PRD", usuario: str = None, senha: str = N
         
         if not campo_senha:
             logger.error("[fazer_login_fluig] Campo de senha não encontrado")
-            driver.quit()
+            try:
+                driver.quit()
+            except:
+                pass
             return None
         
         campo_senha.clear()
@@ -128,7 +134,10 @@ def fazer_login_fluig(ambiente: str = "PRD", usuario: str = None, senha: str = N
         
         if not botao_login:
             logger.error("[fazer_login_fluig] Botão de login não encontrado")
-            driver.quit()
+            try:
+                driver.quit()
+            except:
+                pass
             return None
         
         botao_login.click()
@@ -140,7 +149,10 @@ def fazer_login_fluig(ambiente: str = "PRD", usuario: str = None, senha: str = N
 
         if 'login' in driver.current_url.lower() or 'signin' in driver.current_url.lower():
             logger.warning("[fazer_login_fluig] Ainda na página de login - credenciais inválidas")
-            driver.quit()
+            try:
+                driver.quit()
+            except:
+                pass
             return None
         
         logger.info(f"[fazer_login_fluig] Login bem-sucedido! URL: {driver.current_url}")
@@ -153,6 +165,12 @@ def fazer_login_fluig(ambiente: str = "PRD", usuario: str = None, senha: str = N
         if cookies:
             salvar_cookies(cookies, ambiente, usuario)
             logger.info(f"[fazer_login_fluig] Cookies salvos para usuário {usuario} no ambiente {ambiente}")
+            
+            # Registra o driver para manter aberto (não fecha o navegador)
+            from src.web.web_driver_manager import registrar_driver
+            registrar_driver(driver, ambiente, usuario)
+            logger.info(f"[fazer_login_fluig] Navegador mantido aberto para renovação de cookies")
+            
             return driver
         else:
             logger.warning("[fazer_login_fluig] Nenhum cookie obtido")
@@ -162,11 +180,17 @@ def fazer_login_fluig(ambiente: str = "PRD", usuario: str = None, senha: str = N
     except TimeoutException:
         logger.error("[fazer_login_fluig] Timeout ao aguardar elementos")
         if driver:
-            driver.quit()
+            try:
+                driver.quit()
+            except:
+                pass
         return None
     except Exception as e:
         logger.error(f"[fazer_login_fluig] Erro: {str(e)}")
         if driver:
-            driver.quit()
+            try:
+                driver.quit()
+            except:
+                pass
         return None
 

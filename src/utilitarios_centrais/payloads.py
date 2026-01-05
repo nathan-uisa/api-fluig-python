@@ -13,7 +13,7 @@ from src.utilitarios_centrais.logger import logger
 from src.utilitarios_centrais.fake_user import FakeUser
 
 
-def PayloadChamadoNormal(Item: AberturaChamado, ambiente: str = "PRD") -> Optional[Dict[str, Any]]:
+def PayloadChamadoNormal(Item: AberturaChamado, ambiente: str = "PRD", usuario_atendido: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """
     Monta payload básico para abertura de chamado sem classificação
 
@@ -34,12 +34,18 @@ def PayloadChamadoNormal(Item: AberturaChamado, ambiente: str = "PRD") -> Option
 		"ch_sap": "0", 
 		"num_tel_contato": "5565996345425",
 		"ds_titulo": "TítulodoChamado",
-		"dt_abertura": "19/11/2025 20: 11"
+		"dt_abertura": "19/11/2025 20: 11",
+		"UsuarioAtendido": "Fabricio dos Santos Silva de Carvalho"
 	}
 }
+    
+    Args:
+        Item: Objeto AberturaChamado com dados do chamado
+        ambiente: Ambiente ('PRD' ou 'QLD')
+        usuario_atendido: Nome do usuário atendido (opcional)
     """
     try:
-        logger.info(f"[PayloadChamadoNormal] Iniciando montagem - Usuário: {Item.usuario}")
+        logger.info(f"[PayloadChamadoNormal] Iniciando montagem - Usuário: {Item.usuario}, UsuarioAtendido: {usuario_atendido}")
 
         fluig_core = FluigCore(ambiente=ambiente)
 
@@ -66,23 +72,30 @@ def PayloadChamadoNormal(Item: AberturaChamado, ambiente: str = "PRD") -> Option
         telefone_contato = Item.telefone.strip() if Item.telefone and Item.telefone.strip() else "65"
         dt_abertura = datetime.now().strftime("%d/%m/%Y %H:%M")
 
+        form_fields = {
+            "num_tel_contato": telefone_contato,
+            "ds_titulo": Item.titulo,
+            "ds_chamado": Item.descricao,
+            "nm_emitente": colleague_name,
+            "NomeRegistrador": colleague_name,
+            "h_solicitante": colleague_id,
+            "email_solicitante": colleague_email,
+            "ds_email_sol": colleague_email,
+            "status": "0",
+            "dt_abertura": dt_abertura,
+            "ch_sap": "0"
+        }
+        
+        # Adicionar UsuarioAtendido se fornecido
+        if usuario_atendido and usuario_atendido.strip():
+            form_fields["UsuarioAtendido"] = usuario_atendido.strip()
+            logger.info(f"[PayloadChamadoNormal] UsuarioAtendido adicionado: {usuario_atendido}")
+
         payload = {
             "targetState": "0",
             "subProcessTargetState": "0",
             "targetAssignee": colleague_id,
-            "formFields": {
-                "num_tel_contato": telefone_contato,
-                "ds_titulo": Item.titulo,
-                "ds_chamado": Item.descricao,
-                "nm_emitente": colleague_name,
-                "NomeRegistrador": colleague_name,
-                "h_solicitante": colleague_id,
-                "email_solicitante": colleague_email,
-                "ds_email_sol": colleague_email,
-                "status": "0",
-                "dt_abertura": dt_abertura,
-                "ch_sap": "0"
-            },
+            "formFields": form_fields
         }
 
         logger.info("[PayloadChamadoNormal] Payload montado com sucesso")
@@ -96,7 +109,7 @@ def PayloadChamadoNormal(Item: AberturaChamado, ambiente: str = "PRD") -> Option
         return None
 
 
-def PayloadChamadoClassificado(Item: AberturaChamadoClassificado, ambiente: str = "PRD") -> Optional[Dict[str, Any]]:
+def PayloadChamadoClassificado(Item: AberturaChamadoClassificado, ambiente: str = "PRD", usuario_atendido: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """
     Monta payload para abertura de chamado classificado no Fluig
     
@@ -108,6 +121,7 @@ def PayloadChamadoClassificado(Item: AberturaChamadoClassificado, ambiente: str 
     Args:
         Item: Objeto AberturaChamadoClassificado com dados do chamado
         ambiente: Ambiente ('PRD' ou 'QLD')
+        usuario_atendido: Nome do usuário atendido (opcional)
     
     Returns:
         Dicionário com payload formatado ou None em caso de erro
@@ -264,43 +278,50 @@ def PayloadChamadoClassificado(Item: AberturaChamadoClassificado, ambiente: str 
             logger.info(f"[PayloadChamadoClassificado] Telefone não fornecido ou vazio - usando valor padrão: {telefone_contato}")
         
         # 6. Monta payload
+        form_fields = {
+            "num_tel_contato": telefone_contato,
+            "ds_titulo": Item.titulo,
+            "ds_chamado": Item.descricao,
+            "nm_emitente": colleague_name,
+            "NomeRegistrador": colleague_name,
+            "h_solicitante": colleague_id,
+            "email_solicitante": colleague_email,
+            "ds_email_sol": colleague_email,
+            "status": "0",
+            "dt_abertura": dt_abertura,
+            "ch_sap": "0",
+            "acesso": "0",
+            "ds_grupo_servico": grupo_servico,
+            "ds_item_servico": item_servico,
+            "ds_servico": servico,
+            "urg_alta": urgencia_alta,
+            "urg_media": urgencia_media,
+            "urg_baixa": urgencia_baixa,
+            "ds_urgencia": "Média",
+            "ds_resp_servico": ds_responsavel,
+            "ds_equipe_resp": equipe_executante,
+            "equipe_resp": "ITSM_TODOS",
+            "ds_tipo": "Solicitacao",
+            "status_chamado": "Em Atendimento",
+            "ds_time_HANA": "Interno",
+            "ds_status_HANA": "Pendente",
+            "ds_cargo": ds_cargo,
+            "KeyUser": matric_keyuser,
+            "ds_secao": ds_secao,
+            "num_cr_elab": num_cr_elab,
+            "fila_resp": "",
+            "ds_empresa": ds_empresa
+        }
+        
+        # Adicionar UsuarioAtendido se fornecido
+        if usuario_atendido and usuario_atendido.strip():
+            form_fields["UsuarioAtendido"] = usuario_atendido.strip()
+            logger.info(f"[PayloadChamadoClassificado] UsuarioAtendido adicionado: {usuario_atendido}")
+        
         payload = {
             "targetState": "5",
             "targetAssignee": target_assignee,  # Usa targetAssignee do fake user ou colleague_id para usuários normais
-        "formFields": {
-                "num_tel_contato": telefone_contato,
-                "ds_titulo": Item.titulo,
-                "ds_chamado": Item.descricao,
-                "nm_emitente": colleague_name,
-                "NomeRegistrador": colleague_name,
-                "h_solicitante": colleague_id,
-                "email_solicitante": colleague_email,
-                "ds_email_sol": colleague_email,
-                "status": "0",
-                "dt_abertura": dt_abertura,
-                "ch_sap": "0",
-                "acesso": "0",
-                "ds_grupo_servico": grupo_servico,
-                "ds_item_servico": item_servico,
-                "ds_servico": servico,
-                "urg_alta": urgencia_alta,
-                "urg_media": urgencia_media,
-                "urg_baixa": urgencia_baixa,
-                "ds_urgencia": "Média",
-                "ds_resp_servico": ds_responsavel,
-                "ds_equipe_resp": equipe_executante,
-                "equipe_resp": "ITSM_TODOS",
-                "ds_tipo": "Solicitacao",
-                "status_chamado": "Em Atendimento",
-                "ds_time_HANA": "Interno",
-                "ds_status_HANA": "Pendente",
-                "ds_cargo": ds_cargo,
-                "KeyUser": matric_keyuser,
-                "ds_secao": ds_secao,
-                "num_cr_elab": num_cr_elab,
-                "fila_resp": "",
-                "ds_empresa": ds_empresa
-            }
+            "formFields": form_fields
         }
         
         logger.info(f"[PayloadChamadoClassificado] Payload montado com sucesso")

@@ -12,7 +12,7 @@ from src.site.planilha import Planilha, PATH_TO_TEMP
 from src.site.abrir_chamados import AbrirChamados
 from src.fluig.fluig_core import FluigCore
 from src.web.web_servicos_fluig import obter_detalhes_servico_fluig
-from src.web.web_auth_manager import obter_cookies_validos
+from src.web.web_auth_manager import obter_cookies_validos, garantir_autenticacao, obter_tempo_expiracao_jwt
 from src.utilitarios_centrais.json_utils import salvar_detalhes_servico_json
 from src.modelo_dados.modelo_settings import ConfigEnvSetings
 import os
@@ -23,9 +23,91 @@ router = APIRouter()
 templates = Jinja2Templates(directory="src/site/templates")
 
 
-def buscar_funcionario_por_email(email: str, ambiente: str = "PRD") -> DadosFuncionario:
+def buscar_funcionario(email_ou_chapa: str, ambiente: str = "PRD", obrigatorio: bool = True) -> Optional[DadosFuncionario]:
     """
     Busca dados do funcionário usando o dataset ds_funcionarios do Fluig
+    Aceita email ou chapa como parâmetro de busca
+    
+    Args:
+        email_ou_chapa: Email ou chapa do funcionário
+        ambiente: Ambiente do Fluig (PRD ou QLD), padrão PRD
+        obrigatorio: Se True, lança ValueError quando não encontrar. Se False, retorna None
+    
+    Returns:
+        DadosFuncionario com os dados do funcionário ou None se não encontrar (quando obrigatorio=False)
+    
+    Raises:
+        ValueError: Se obrigatorio=True e não encontrar o funcionário ou houver erro na busca
+    """
+    if not email_ou_chapa or not email_ou_chapa.strip():
+        if obrigatorio:
+            raise ValueError("Email ou chapa não fornecido")
+        return None
+    
+    email_ou_chapa = email_ou_chapa.strip()
+    
+    try:
+        logger.info(f"[buscar_funcionario] Buscando funcionário - Email/Chapa: {email_ou_chapa}, Ambiente: {ambiente}")
+        
+        fluig_core = FluigCore(ambiente=ambiente)
+        resultado = fluig_core.Dataset_config(dataset_id="ds_funcionarios", user=email_ou_chapa)
+        
+        # Verificar se a resposta é um objeto Response (erro HTTP)
+        if hasattr(resultado, 'status_code'):
+            status_code = resultado.status_code
+            mensagem_erro = None
+            if status_code == 502:
+                mensagem_erro = "Servidor Fluig temporariamente indisponível. Por favor, tente novamente em alguns instantes."
+            elif status_code == 503:
+                mensagem_erro = "Serviço Fluig temporariamente indisponível. Por favor, tente novamente em alguns instantes."
+            elif status_code == 401:
+                mensagem_erro = "Falha de autenticação com o Fluig. Por favor, entre em contato com o suporte."
+            elif status_code == 404:
+                mensagem_erro = "Recurso não encontrado no Fluig. Por favor, entre em contato com o suporte."
+            else:
+                mensagem_erro = f"Erro ao conectar com o Fluig (código {status_code}). Por favor, tente novamente ou entre em contato com o suporte."
+            
+            logger.error(f"[buscar_funcionario] Erro HTTP {status_code} ao buscar funcionário")
+            if obrigatorio:
+                raise ValueError(mensagem_erro)
+            return None
+        
+        # Verificar se a resposta é um dicionário com content
+        if isinstance(resultado, dict) and 'content' in resultado:
+            content = resultado.get('content', [])
+            
+            if not content or len(content) == 0:
+                logger.warning(f"[buscar_funcionario] Nenhum funcionário encontrado para: {email_ou_chapa}")
+                if obrigatorio:
+                    raise ValueError(f"Nenhum funcionário encontrado para: {email_ou_chapa}")
+                return None
+            
+            # Pegar o primeiro resultado
+            funcionario_data = content[0]
+            logger.info(f"[buscar_funcionario] Funcionário encontrado: {funcionario_data.get('Nome', 'N/A')}")
+            
+            # Criar instância DadosFuncionario
+            funcionario = DadosFuncionario(**funcionario_data)
+            return funcionario
+        else:
+            mensagem_erro = "Resposta inválida do dataset de funcionários. Por favor, entre em contato com o suporte."
+            logger.error(f"[buscar_funcionario] Resposta inválida do dataset: {type(resultado)}")
+            if obrigatorio:
+                raise ValueError(mensagem_erro)
+            return None
+            
+    except ValueError:
+        raise
+    except Exception as e:
+        logger.error(f"[buscar_funcionario] Erro ao buscar funcionário: {str(e)}")
+        if obrigatorio:
+            raise ValueError(f"Erro ao buscar funcionário: {str(e)}")
+        return None
+
+
+def buscar_funcionario_por_email(email: str, ambiente: str = "PRD") -> DadosFuncionario:
+    """
+    Busca dados do funcionário usando o dataset ds_funcionarios do Fluig por email
     
     Args:
         email: Email do funcionário
@@ -37,55 +119,80 @@ def buscar_funcionario_por_email(email: str, ambiente: str = "PRD") -> DadosFunc
     Raises:
         ValueError: Se não encontrar o funcionário ou houver erro na busca
     """
+    return buscar_funcionario(email, ambiente, obrigatorio=True)
+
+
+def buscar_funcionario_por_chapa_ou_email(chapa_ou_email: str, ambiente: str = "PRD") -> Optional[DadosFuncionario]:
+    """
+    Busca dados do funcionário usando o dataset ds_funcionarios do Fluig
+    Aceita email ou chapa como parâmetro de busca
+    
+    Args:
+        chapa_ou_email: Chapa ou email do funcionário
+        ambiente: Ambiente do Fluig (PRD ou QLD), padrão PRD
+    
+    Returns:
+        DadosFuncionario com os dados do funcionário ou None se não encontrar
+    
+    Raises:
+        ValueError: Se houver erro na busca (não se não encontrar)
+    """
+    return buscar_funcionario(chapa_ou_email, ambiente, obrigatorio=False)
+
+
+def buscar_colleague_name(chapa_ou_email: str, ambiente: str = "PRD") -> Optional[str]:
+    """
+    Busca o colleagueName formatado do dataset colleague
+    Retorna o nome formatado corretamente (primeira letra maiúscula)
+    
+    Args:
+        chapa_ou_email: Chapa ou email do funcionário
+        ambiente: Ambiente do Fluig (PRD ou QLD), padrão PRD
+    
+    Returns:
+        Nome formatado (colleagueName) ou None se não encontrar
+    """
+    if not chapa_ou_email or not chapa_ou_email.strip():
+        return None
+    
+    chapa_ou_email = chapa_ou_email.strip()
+    
     try:
-        logger.info(f"[buscar_funcionario_por_email] Buscando funcionário - Email: {email}, Ambiente: {ambiente}")
+        logger.info(f"[buscar_colleague_name] Buscando colleagueName - Chapa/Email: {chapa_ou_email}, Ambiente: {ambiente}")
         
         fluig_core = FluigCore(ambiente=ambiente)
-        resultado = fluig_core.Dataset_config(dataset_id="ds_funcionarios", user=email)
+        resultado = fluig_core.Dataset_config(dataset_id="colleague", user=chapa_ou_email)
         
         # Verificar se a resposta é um objeto Response (erro HTTP)
         if hasattr(resultado, 'status_code'):
-            status_code = resultado.status_code
-            if status_code == 502:
-                logger.error(f"[buscar_funcionario_por_email] Erro 502 (Bad Gateway) - Servidor Fluig indisponível")
-                raise ValueError("Servidor Fluig temporariamente indisponível. Por favor, tente novamente em alguns instantes.")
-            elif status_code == 503:
-                logger.error(f"[buscar_funcionario_por_email] Erro 503 (Service Unavailable) - Serviço Fluig indisponível")
-                raise ValueError("Serviço Fluig temporariamente indisponível. Por favor, tente novamente em alguns instantes.")
-            elif status_code == 401:
-                logger.error(f"[buscar_funcionario_por_email] Erro 401 (Unauthorized) - Falha de autenticação")
-                raise ValueError("Falha de autenticação com o Fluig. Por favor, entre em contato com o suporte.")
-            elif status_code == 404:
-                logger.error(f"[buscar_funcionario_por_email] Erro 404 (Not Found) - Recurso não encontrado")
-                raise ValueError("Recurso não encontrado no Fluig. Por favor, entre em contato com o suporte.")
-            else:
-                logger.error(f"[buscar_funcionario_por_email] Erro HTTP {status_code} ao buscar funcionário")
-                raise ValueError(f"Erro ao conectar com o Fluig (código {status_code}). Por favor, tente novamente ou entre em contato com o suporte.")
+            logger.warning(f"[buscar_colleague_name] Erro HTTP {resultado.status_code} ao buscar colleague")
+            return None
         
         # Verificar se a resposta é um dicionário com content
         if isinstance(resultado, dict) and 'content' in resultado:
             content = resultado.get('content', [])
             
             if not content or len(content) == 0:
-                logger.warning(f"[buscar_funcionario_por_email] Nenhum funcionário encontrado para o email: {email}")
-                raise ValueError(f"Nenhum funcionário encontrado para o email: {email}")
+                logger.warning(f"[buscar_colleague_name] Nenhum colleague encontrado para: {chapa_ou_email}")
+                return None
             
             # Pegar o primeiro resultado
-            funcionario_data = content[0]
-            logger.info(f"[buscar_funcionario_por_email] Funcionário encontrado: {funcionario_data.get('Nome', 'N/A')}")
+            colleague_data = content[0]
+            colleague_name = colleague_data.get('colleagueName', '')
             
-            # Criar instância DadosFuncionario
-            funcionario = DadosFuncionario(**funcionario_data)
-            return funcionario
+            if colleague_name:
+                logger.info(f"[buscar_colleague_name] colleagueName encontrado: {colleague_name}")
+                return colleague_name
+            else:
+                logger.warning(f"[buscar_colleague_name] colleagueName não encontrado no resultado")
+                return None
         else:
-            logger.error(f"[buscar_funcionario_por_email] Resposta inválida do dataset: {type(resultado)}")
-            raise ValueError("Resposta inválida do dataset de funcionários. Por favor, entre em contato com o suporte.")
+            logger.warning(f"[buscar_colleague_name] Resposta inválida do dataset: {type(resultado)}")
+            return None
             
-    except ValueError:
-        raise
     except Exception as e:
-        logger.error(f"[buscar_funcionario_por_email] Erro ao buscar funcionário: {str(e)}")
-        raise ValueError(f"Erro ao buscar funcionário: {str(e)}")
+        logger.warning(f"[buscar_colleague_name] Erro ao buscar colleagueName: {str(e)}")
+        return None
 
 
 @router.get("/chamado", response_class=HTMLResponse)
@@ -159,7 +266,7 @@ async def criar_chamado(
     ds_titulo: str = Form(...),
     ds_chamado: str = Form(...),
     solicitante: str = Form(None),
-    num_tel_contato: str = Form(None),
+    telefone_contato: str = Form(None),
     sap_ibid: str = Form("Não"),
     planilha: UploadFile = File(None),
     qtd_chamados: int = Form(1),
@@ -191,12 +298,54 @@ async def criar_chamado(
         # Buscar dados do funcionário novamente usando dataset interno do Fluig
         funcionario = buscar_funcionario_por_email(email, ambiente="PRD")
         
+        # Validar telefone obrigatório
+        # Priorizar telefone preenchido no campo "Telefone de Contato" do formulário
+        telefone_final = telefone_contato.strip() if telefone_contato and telefone_contato.strip() else (funcionario.Telefone.strip() if funcionario.Telefone and funcionario.Telefone.strip() else '')
+        
+        if not telefone_final:
+            # Retornar erro se telefone não foi fornecido
+            dados_funcionario = DadosFuncionarioForm(
+                elaborador=funcionario.Nome or '',
+                solicitante=solicitante or funcionario.Nome or '',
+                data_abertura=datetime.now().strftime('%d/%m/%Y %H:%M'),
+                telefone_contato='',
+                cargo=funcionario.Função or '',
+                secao=funcionario.Seção or '',
+                empresa=funcionario.Empresa or '',
+                centro_custo=funcionario.Centro_Custo or '',
+                chapa=funcionario.Chapa,
+                gerencia=funcionario.Gerencia,
+                email=funcionario.Email or ''
+            )
+            
+            error_msg = "O campo Telefone de Contato é obrigatório para abrir um chamado."
+            
+            # Verificar se é requisição AJAX
+            if accept and 'application/json' in accept:
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "sucesso": False,
+                        "erro": error_msg
+                    }
+                )
+            
+            return templates.TemplateResponse(
+                "chamado.html",
+                {
+                    "request": request,
+                    "dados": dados_funcionario.model_dump(),
+                    "user": user,
+                    "error": error_msg
+                }
+            )
+        
         # Criar dados formatados para o formulário
         dados_funcionario = DadosFuncionarioForm(
             elaborador=funcionario.Nome or '',
             solicitante=solicitante or funcionario.Nome or '',
             data_abertura=datetime.now().strftime('%d/%m/%Y %H:%M'),
-            telefone_contato=num_tel_contato or funcionario.Telefone or '',
+            telefone_contato=telefone_final,
             cargo=funcionario.Função or '',
             secao=funcionario.Seção or '',
             empresa=funcionario.Empresa or '',
@@ -254,7 +403,8 @@ async def criar_chamado(
                     qtd_chamados=qtd_chamados,
                     inicio_linha=1,
                     ignorar_primeira_linha=ignorar_cabecalho,
-                    servico_id=servico_id if servico_id and servico_id.strip() else None
+                    servico_id=servico_id if servico_id and servico_id.strip() else None,
+                    solicitante=solicitante if solicitante and solicitante.strip() else None
                 )
                 
                 chamados_criados = resultado['sucessos']
@@ -306,6 +456,19 @@ async def criar_chamado(
             # Criar chamado único
             try:
                 ambiente = "PRD"
+                usuario_atendido = None
+                
+                # Buscar nome do funcionário se solicitante foi fornecido
+                # Usar colleagueName do dataset colleague para obter nome formatado corretamente
+                if solicitante and solicitante.strip():
+                    try:
+                        usuario_atendido = buscar_colleague_name(solicitante.strip(), ambiente=ambiente)
+                        if usuario_atendido:
+                            logger.info(f"[criar_chamado] UsuarioAtendido encontrado (colleagueName): {usuario_atendido}")
+                        else:
+                            logger.warning(f"[criar_chamado] Colleague não encontrado para solicitante: {solicitante}")
+                    except Exception as e:
+                        logger.warning(f"[criar_chamado] Erro ao buscar colleagueName por solicitante: {str(e)}")
                 
                 # Verificar se deve classificar o chamado (se há servico_id preenchido)
                 if servico_id and servico_id.strip():
@@ -314,7 +477,7 @@ async def criar_chamado(
                         titulo=ds_titulo,
                         descricao=ds_chamado,
                         usuario=email,
-                        telefone=num_tel_contato or funcionario.Telefone or None,
+                        telefone=telefone_final,
                         servico=servico_id
                     )
                     
@@ -322,7 +485,7 @@ async def criar_chamado(
                     
                     # Chamar diretamente a função FluigCore
                     fluig_core = FluigCore(ambiente=ambiente)
-                    resposta = fluig_core.AberturaDeChamado(tipo_chamado="classificado", Item=payload_chamado)
+                    resposta = fluig_core.AberturaDeChamado(tipo_chamado="classificado", Item=payload_chamado, usuario_atendido=usuario_atendido)
                     
                     if not resposta.get('sucesso'):
                         logger.error(f"[criar_chamado] Falha ao abrir chamado classificado - Status: {resposta.get('status_code')}")
@@ -355,7 +518,7 @@ async def criar_chamado(
                     
                     # Chamar diretamente a função FluigCore
                     fluig_core = FluigCore(ambiente=ambiente)
-                    resposta = fluig_core.AberturaDeChamado(tipo_chamado="normal", Item=payload_chamado)
+                    resposta = fluig_core.AberturaDeChamado(tipo_chamado="normal", Item=payload_chamado, usuario_atendido=usuario_atendido)
                     
                     if not resposta.get('sucesso'):
                         logger.error(f"[criar_chamado] Falha ao abrir chamado normal - Status: {resposta.get('status_code')}")
@@ -520,6 +683,7 @@ class PreviewRequest(BaseModel):
     """Modelo para requisição de prévia"""
     titulo: str
     descricao: str
+    solicitante: Optional[str] = None
     qtd_chamados: int = 5
     ignorar_primeira_linha: bool = True
 
@@ -598,7 +762,8 @@ async def preview_chamados(request: Request, preview_data: PreviewRequest):
             resultado = abrir_chamados.processar_chamado(
                 preview_data.titulo,
                 preview_data.descricao,
-                linha_str
+                linha_str,
+                solicitante=preview_data.solicitante
             )
             
             if 'erro' in resultado:
@@ -606,6 +771,7 @@ async def preview_chamados(request: Request, preview_data: PreviewRequest):
                     'linha': numero_linha,
                     'titulo': preview_data.titulo,
                     'descricao': preview_data.descricao,
+                    'solicitante': preview_data.solicitante or '',
                     'erro': resultado['erro']
                 })
             else:
@@ -613,6 +779,7 @@ async def preview_chamados(request: Request, preview_data: PreviewRequest):
                     'linha': numero_linha,
                     'titulo': resultado['titulo'],
                     'descricao': resultado['descricao'],
+                    'solicitante': resultado.get('solicitante', ''),
                     'erro': None
                 })
         
@@ -962,6 +1129,70 @@ async def buscar_detalhes_servico(request: Request, busca: BuscarDetalhesServico
             content={
                 "sucesso": False,
                 "erro": f"Erro inesperado ao buscar detalhes do serviço: {str(e)}"
+            }
+        )
+
+
+@router.post("/renovar_sessao", response_class=JSONResponse)
+async def renovar_sessao(request: Request):
+    """
+    Renova a sessão do Fluig usando os cookies da sessão atual do navegador.
+    Mantém a sessão ativa sem necessidade de re-login.
+    """
+    user = request.session.get('user')
+    if not user:
+        return JSONResponse(
+            status_code=401,
+            content={
+                "sucesso": False,
+                "erro": "Usuário não autenticado"
+            }
+        )
+    
+    try:
+        ambiente = "PRD"
+        usuario = ConfigEnvSetings.FLUIG_ADMIN_USER
+        senha = ConfigEnvSetings.FLUIG_ADMIN_PASS
+        
+        # Garante autenticação válida (verifica e renova se necessário)
+        sucesso, cookies = garantir_autenticacao(
+            ambiente=ambiente,
+            forcar_login=False,
+            usuario=usuario,
+            senha=senha
+        )
+        
+        if not sucesso or not cookies:
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "sucesso": False,
+                    "erro": "Falha ao renovar sessão"
+                }
+            )
+        
+        # Obtém tempo restante até expiração
+        tempo_restante = obter_tempo_expiracao_jwt(cookies)
+        tempo_restante_minutos = tempo_restante // 60 if tempo_restante else None
+        
+        logger.info(f"[renovar_sessao] Sessão renovada com sucesso - Tempo restante: {tempo_restante_minutos} minutos")
+        
+        return JSONResponse(content={
+            "sucesso": True,
+            "mensagem": "Sessão renovada com sucesso",
+            "tempo_restante_minutos": tempo_restante_minutos,
+            "tempo_restante_segundos": tempo_restante
+        })
+        
+    except Exception as e:
+        logger.error(f"[renovar_sessao] Erro ao renovar sessão: {str(e)}")
+        import traceback
+        logger.debug(f"Traceback: {traceback.format_exc()}")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "sucesso": False,
+                "erro": f"Erro ao renovar sessão: {str(e)}"
             }
         )
 

@@ -90,7 +90,7 @@ class AbrirChamados:
         
         return texto_processado
     
-    def processar_chamado(self, titulo: str, descricao: str, numero_linha: str) -> Dict:
+    def processar_chamado(self, titulo: str, descricao: str, numero_linha: str, solicitante: Optional[str] = None) -> Dict:
         """
         Processa um chamado substituindo placeholders pelos valores da planilha.
         
@@ -98,9 +98,10 @@ class AbrirChamados:
             titulo: Título do chamado com placeholders
             descricao: Descrição do chamado com placeholders
             numero_linha: Número da linha/seção no config
+            solicitante: Campo solicitante com placeholders (opcional)
         
         Returns:
-            Dicionário com título e descrição processados, ou erro se linha não encontrada
+            Dicionário com título, descrição e solicitante processados, ou erro se linha não encontrada
         """
         secao = str(numero_linha)
         
@@ -108,18 +109,21 @@ class AbrirChamados:
             return {
                 'titulo': titulo,
                 'descricao': descricao,
+                'solicitante': solicitante or '',
                 'erro': f'Linha {secao} não encontrada'
             }
         
         titulo_processado = self.substituir_placeholders(titulo, secao)
         desc_processada = self.substituir_placeholders(descricao, secao)
+        solicitante_processado = self.substituir_placeholders(solicitante, secao) if solicitante else ''
         
         return {
             'titulo': titulo_processado,
             'descricao': desc_processada,
+            'solicitante': solicitante_processado,
         }
     
-    def criar_chamado_api(self, titulo: str, descricao: str, servico_id: Optional[str] = None) -> Dict:
+    def criar_chamado_api(self, titulo: str, descricao: str, servico_id: Optional[str] = None, solicitante: Optional[str] = None, usuario_atendido: Optional[str] = None) -> Dict:
         """
         Cria um chamado usando FluigCore diretamente (sem requisição HTTP).
         
@@ -127,12 +131,26 @@ class AbrirChamados:
             titulo: Título do chamado
             descricao: Descrição do chamado
             servico_id: ID do serviço para chamado classificado (opcional)
+            solicitante: Chapa ou email do solicitante (opcional)
+            usuario_atendido: Nome formatado do usuário atendido (opcional, já formatado)
         
         Returns:
             Dicionário com resultado: {'sucesso': bool, 'mensagem': str, 'dados': dict}
         """
         try:
             ambiente = "PRD"
+            
+            # Se usuario_atendido não foi fornecido, buscar usando colleagueName
+            if not usuario_atendido and solicitante and solicitante.strip():
+                try:
+                    from src.rotas.webapp.rt_chamado import buscar_colleague_name
+                    usuario_atendido = buscar_colleague_name(solicitante.strip(), ambiente=ambiente)
+                    if usuario_atendido:
+                        logger.info(f"[criar_chamado_api] UsuarioAtendido encontrado (colleagueName): {usuario_atendido}")
+                    else:
+                        logger.warning(f"[criar_chamado_api] Colleague não encontrado para solicitante: {solicitante}")
+                except Exception as e:
+                    logger.warning(f"[criar_chamado_api] Erro ao buscar colleagueName por solicitante: {str(e)}")
             
             if servico_id and servico_id.strip():
                 # Criar chamado classificado
@@ -146,7 +164,7 @@ class AbrirChamados:
                 
                 logger.info(f"[criar_chamado_api] Criando chamado classificado - Serviço: {servico_id}")
                 fluig_core = FluigCore(ambiente=ambiente)
-                resposta = fluig_core.AberturaDeChamado(tipo_chamado="classificado", Item=payload_chamado)
+                resposta = fluig_core.AberturaDeChamado(tipo_chamado="classificado", Item=payload_chamado, usuario_atendido=usuario_atendido)
             else:
                 # Criar chamado normal
                 payload_chamado = DadosChamado(
@@ -157,7 +175,7 @@ class AbrirChamados:
                 
                 logger.info(f"[criar_chamado_api] Criando chamado normal")
                 fluig_core = FluigCore(ambiente=ambiente)
-                resposta = fluig_core.AberturaDeChamado(tipo_chamado="normal", Item=payload_chamado)
+                resposta = fluig_core.AberturaDeChamado(tipo_chamado="normal", Item=payload_chamado, usuario_atendido=usuario_atendido)
             
             if not resposta.get('sucesso'):
                 logger.error(f"[criar_chamado_api] Falha ao abrir chamado - Status: {resposta.get('status_code')}")
@@ -205,7 +223,8 @@ class AbrirChamados:
         qtd_chamados: int,
         inicio_linha: int = 1,
         ignorar_primeira_linha: bool = True,
-        servico_id: Optional[str] = None
+        servico_id: Optional[str] = None,
+        solicitante: Optional[str] = None
     ) -> Dict:
         """
         Abre múltiplos chamados em sequência usando dados da planilha processada.
@@ -296,7 +315,8 @@ class AbrirChamados:
             resultado_processamento = self.processar_chamado(
                 titulo, 
                 descricao, 
-                linha_str
+                linha_str,
+                solicitante=solicitante
             )
             
             if 'erro' in resultado_processamento:
@@ -311,11 +331,26 @@ class AbrirChamados:
                 )
                 continue
             
+            # Buscar colleagueName formatado se solicitante foi processado
+            solicitante_processado = resultado_processamento.get('solicitante', '')
+            usuario_atendido_formatado = None
+            if solicitante_processado and solicitante_processado.strip():
+                try:
+                    from src.rotas.webapp.rt_chamado import buscar_colleague_name
+                    ambiente_busca = "PRD"
+                    usuario_atendido_formatado = buscar_colleague_name(solicitante_processado.strip(), ambiente=ambiente_busca)
+                    if usuario_atendido_formatado:
+                        logger.info(f"[abrir_chamados_sequencia] UsuarioAtendido formatado encontrado (linha {numero_linha}): {usuario_atendido_formatado}")
+                except Exception as e:
+                    logger.warning(f"[abrir_chamados_sequencia] Erro ao buscar colleagueName para linha {numero_linha}: {str(e)}")
+            
             # Criar chamado usando FluigCore diretamente
             resultado_api = self.criar_chamado_api(
                 resultado_processamento['titulo'],
                 resultado_processamento['descricao'],
-                servico_id=servico_id
+                servico_id=servico_id,
+                solicitante=solicitante_processado,
+                usuario_atendido=usuario_atendido_formatado
             )
             
             if resultado_api['sucesso']:

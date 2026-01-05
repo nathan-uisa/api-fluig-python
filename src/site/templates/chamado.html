@@ -85,8 +85,9 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="telefone_contato">Telefone de Contato</label>
-                            <input type="text" id="telefone_contato" name="telefone_contato" value="{{ dados.telefone_contato }}">
+                            <label for="telefone_contato">Telefone de Contato <span class="required">*</span></label>
+                            <input type="text" id="telefone_contato" name="telefone_contato" value="{{ dados.telefone_contato }}" required title="Campo obrigatório. Informe um número de telefone válido para contato.">
+                            <small class="field-error" id="telefone-error" style="display: none; color: var(--error-text); margin-top: 4px; font-size: 13px;">⚠️ O campo Telefone de Contato é obrigatório para abrir um chamado.</small>
                         </div>
 
                         <!--<div class="form-group">
@@ -109,39 +110,39 @@
                     <div class="form-grid-two">
                         <div class="form-group">
                             <label for="ds_grupo_servico">Grupo de Serviço</label>
-                            <input type="text" id="ds_grupo_servico" name="ds_grupo_servico" maxlength="255" placeholder="Selecione um Serviço" readonly>
+                            <input type="text" id="ds_grupo_servico" name="ds_grupo_servico" maxlength="255" placeholder="Selecione um Serviço" readonly title="Grupo ao qual o serviço selecionado pertence. Este campo é preenchido automaticamente ao selecionar um serviço.">
                         </div>
                         <div class="form-group">
                             <label for="item_servico">Item de Serviço</label>
-                            <input type="text" id="item_servico" name="item_servico" maxlength="255" placeholder="Selecione um Serviço" readonly>
+                            <input type="text" id="item_servico" name="item_servico" maxlength="255" placeholder="Selecione um Serviço" readonly title="Item específico do serviço selecionado. Este campo é preenchido automaticamente ao selecionar um serviço.">
                         </div>
                         <div class="form-group">
                             <label for="servico">Serviço</label>
                             <div class="autocomplete-container">
-                                <input type="text" id="servico" name="servico" maxlength="255" placeholder="Digite para buscar..." autocomplete="off">
+                                <input type="text" id="servico" name="servico" maxlength="255" placeholder="Digite para buscar..." autocomplete="off" title="Digite o nome do serviço desejado. Ao selecionar um serviço, os demais campos de classificação serão preenchidos automaticamente.">
                                 <input type="hidden" id="servico_id" name="servico_id">
                                 <div id="servico-dropdown" class="dropdown-list"></div>
                             </div>
                         </div>
                         <div class="form-group">
                             <label for="urg_alta">Urgência = ALTA</label>
-                            <input type="text" id="urg_alta" name="urg_alta" maxlength="255" placeholder="Selecione um Serviço" readonly>
+                            <input type="text" id="urg_alta" name="urg_alta" maxlength="255" placeholder="Selecione um Serviço" readonly title="Tempo de atendimento quando a urgência é classificada como ALTA. Este campo é preenchido automaticamente ao selecionar um serviço.">
                         </div>
                         <div class="form-group">
                             <label for="urg_media">Urgência = MÉDIA</label>
-                            <input type="text" id="urg_media" name="urg_media" maxlength="255" placeholder="Selecione um Serviço" readonly>
+                            <input type="text" id="urg_media" name="urg_media" maxlength="255" placeholder="Selecione um Serviço" readonly title="Tempo de atendimento quando a urgência é classificada como MÉDIA. Este campo é preenchido automaticamente ao selecionar um serviço.">
                         </div>
                         <div class="form-group">
                             <label for="urg_baixa">Urgência = BAIXA</label>
-                            <input type="text" id="urg_baixa" name="urg_baixa" maxlength="255" placeholder="Selecione um Serviço" readonly>
+                            <input type="text" id="urg_baixa" name="urg_baixa" maxlength="255" placeholder="Selecione um Serviço" readonly title="Tempo de atendimento quando a urgência é classificada como BAIXA. Este campo é preenchido automaticamente ao selecionar um serviço.">
                         </div>
                         <div class="form-group">
                             <label for="ds_resp_servico">Responsável pelo Serviço TI</label>
-                            <input type="text" id="ds_resp_servico" name="ds_resp_servico" maxlength="255" placeholder="Selecione um Serviço" readonly>
+                            <input type="text" id="ds_resp_servico" name="ds_resp_servico" maxlength="255" placeholder="Selecione um Serviço" readonly title="Nome do responsável técnico pelo serviço selecionado. Este campo é preenchido automaticamente ao selecionar um serviço.">
                         </div>
                         <div class="form-group">
                             <label for="ds_tipo">Tipo de Chamado</label>
-                            <select id="ds_tipo" name="ds_tipo" class="form-select">
+                            <select id="ds_tipo" name="ds_tipo" class="form-select" title="Selecione o tipo de chamado: Incidente (problema que precisa ser resolvido), Solicitação (novo serviço ou recurso), Tarefa (atividade específica) ou Fast Track (processo rápido).">
                                 <option value="Incidente">Incidente</option>
                                 <option value="Solicitação" selected>Solicitação</option>
                                 <option value="Tarefa">Tarefa</option>
@@ -150,7 +151,7 @@
                         </div>
                         <div class="form-group">
                             <label for="ds_urgencia">Urgência</label>
-                            <select id="ds_urgencia" name="ds_urgencia" class="form-select">
+                            <select id="ds_urgencia" name="ds_urgencia" class="form-select" title="Selecione o nível de urgência do chamado: Baixa (pode aguardar), Média (atenção normal) ou Alta (prioridade máxima).">
                                 <option value="Baixa">Baixa</option>
                                 <option value="Média" selected>Média</option>
                                 <option value="Alta">Alta</option>
@@ -158,11 +159,11 @@
                         </div>
                         <div class="form-group">
                             <label for="equipe_responsavel">Equipe Responsável</label>
-                            <input type="text" id="equipe_responsavel" name="equipe_responsavel" maxlength="255" placeholder="Selecione um Serviço" readonly>
+                            <input type="text" id="equipe_responsavel" name="equipe_responsavel" maxlength="255" placeholder="Selecione um Serviço" readonly title="Equipe que será responsável pelo atendimento do chamado. Este campo é preenchido automaticamente ao selecionar um serviço.">
                         </div>
                         <div class="form-group">
                             <label for="status">Status</label>
-                            <select id="status" name="status" class="form-select">
+                            <select id="status" name="status" class="form-select" title="Status inicial do chamado. 'Aberto' é o status padrão para novos chamados. Outros status podem ser selecionados conforme necessário.">
                                 <option value="Aberto" selected>Aberto</option>
                                 <option value="Aguardando Informações do Usuário">Aguardando Informações do Usuário</option>
                                 <option value="Aguardando Testes">Aguardando Testes</option>
@@ -172,6 +173,10 @@
                                 <option value="Em Transporte para PRD">Em Transporte para PRD</option>
                                 <option value="Em Atendimento pela Consultoria">Em Atendimento pela Consultoria</option>
                             </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="solicitante">Solicitante (Em caso de não ser o Elaborador)</label>
+                            <input type="text" id="solicitante" name="solicitante" maxlength="255" placeholder="Aceita Chapa (12345678), Email (nome@uisa.com.br) ou &lt;letra-da-coluna&gt;" title="Informe o solicitante quando for diferente do elaborador. Aceita: CHAPA do funcionário (ex: 1234567), EMAIL do funcionário (ex: nome@uisa.com.br) ou PLACEHOLDERS da planilha (ex: &lt;A&gt;, &lt;B&gt;, &lt;C&gt;). Para geração em lote, use placeholders para referenciar colunas da planilha. O sistema buscará automaticamente o nome do funcionário e preencherá o campo 'UsuarioAtendido' no chamado.">
                         </div>
                     </div>
                 </div>
@@ -185,12 +190,12 @@
                     <div class="form-grid-two">
                         <div class="form-group full-width">
                             <label for="ds_titulo">Título <span class="required">*</span></label>
-                            <input type="text" id="ds_titulo" name="ds_titulo" required placeholder="Digite o Título do Chamado. Para geração em lote, use &lt;coluna&gt; para referenciar valores da planilha (ex: &lt;A&gt;, &lt;B&gt;, etc.)">
+                            <input type="text" id="ds_titulo" name="ds_titulo" required placeholder="Digite o Título do Chamado. Para geração em lote, use &lt;letra-da-coluna&gt; para referenciar valores da planilha (ex: &lt;A&gt;, &lt;B&gt;, etc.)">
                         </div>
 
                         <div class="form-group full-width">
                             <label for="ds_chamado">Descrição <span class="required">*</span></label>
-                            <textarea id="ds_chamado" name="ds_chamado" required rows="5" placeholder="Digite a Descrição do Chamado. Para geração em lote, use &lt;coluna&gt; para referenciar valores da planilha (ex: &lt;A&gt;, &lt;B&gt;, etc.)"></textarea>
+                            <textarea id="ds_chamado" name="ds_chamado" required rows="5" placeholder="Digite a Descrição do Chamado. Para geração em lote, use &lt;letra-da-coluna&gt; para referenciar valores da planilha (ex: &lt;A&gt;, &lt;B&gt;, etc.)"></textarea>
                         </div>
                         <div class="form-group full-width" id="preview-button-group" style="display: none;">
                             <button type="button" id="btn-preview" class="btn-secondary" style="width: 100%;">
@@ -285,6 +290,14 @@
             <div class="modal-footer" id="modal-processamento-footer" style="display: none; padding: 20px; border-top: 1px solid var(--border-primary); text-align: right;">
                 <button type="button" id="btn-concluir-processamento" class="btn-primary">Concluir</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Modal de Carregamento de Serviço -->
+    <div id="modal-loading-servico" class="modal-overlay-blur" style="display: none;">
+        <div class="modal-loading-content">
+            <div class="spinner" style="margin: 0 auto 20px;"></div>
+            <p style="color: var(--text-primary); font-size: 16px; margin: 0;">Carregando detalhes do serviço...</p>
         </div>
     </div>
 

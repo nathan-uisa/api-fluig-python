@@ -211,3 +211,8 @@ __marimo__/
 DadosLocais/
 DadosLocais
 /DadosLocais
+*.xls
+*.xlsx
+.xlsx
+pln1.xlsx
+temp.txt
