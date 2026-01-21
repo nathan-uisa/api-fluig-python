@@ -232,7 +232,8 @@ async def chamado(request: Request):
             {
                 "request": request,
                 "dados": dados_funcionario.model_dump(),
-                "user": user
+                "user": user,
+                "versao": "3.1.2"
             }
         )
         
@@ -255,7 +256,8 @@ async def chamado(request: Request):
                 "request": request,
                 "dados": None,
                 "user": user,
-                "error": f"Erro inesperado ao processar a solicitação: {str(e)}"
+                "error": f"Erro inesperado ao processar a solicitação: {str(e)}",
+                "versao": "3.1.2"
             }
         )
 
@@ -336,7 +338,8 @@ async def criar_chamado(
                     "request": request,
                     "dados": dados_funcionario.model_dump(),
                     "user": user,
-                    "error": error_msg
+                    "error": error_msg,
+                    "versao": "3.1.2"
                 }
             )
         
@@ -367,7 +370,8 @@ async def criar_chamado(
                         "request": request,
                         "dados": dados_funcionario.model_dump(),
                         "user": user,
-                        "error": "Apenas arquivos .xlsx são suportados."
+                        "error": "Apenas arquivos .xlsx são suportados.",
+                        "versao": "3.1.2"
                     }
                 )
             
@@ -390,7 +394,8 @@ async def criar_chamado(
                             "request": request,
                             "dados": dados_funcionario.model_dump(),
                             "user": user,
-                            "error": "Erro ao processar planilha. Verifique o formato do arquivo."
+                            "error": "Erro ao processar planilha. Verifique o formato do arquivo.",
+                            "versao": "3.1.2"
                         }
                     )
                 
@@ -435,7 +440,8 @@ async def criar_chamado(
                         "request": request,
                         "dados": dados_funcionario.model_dump(),
                         "user": user,
-                        "success": mensagem
+                        "success": mensagem,
+                        "versao": "3.1.2"
                     }
                 )
                 
@@ -449,7 +455,8 @@ async def criar_chamado(
                         "request": request,
                         "dados": dados_funcionario.model_dump(),
                         "user": user,
-                        "error": f"Erro ao processar planilha: {str(e)}"
+                        "error": f"Erro ao processar planilha: {str(e)}",
+                        "versao": "3.1.2"
                     }
                 )
         else:
@@ -553,7 +560,8 @@ async def criar_chamado(
                         "request": request,
                         "dados": dados_funcionario.model_dump(),
                         "user": user,
-                        "success": "Chamado criado com sucesso!"
+                        "success": "Chamado criado com sucesso!",
+                        "versao": "3.1.2"
                     }
                 )
             except HTTPException as e:
@@ -564,7 +572,8 @@ async def criar_chamado(
                         "request": request,
                         "dados": dados_funcionario.model_dump(),
                         "user": user,
-                        "error": str(e.detail)
+                        "error": str(e.detail),
+                        "versao": "3.1.2"
                     }
                 )
             except Exception as e:
@@ -577,7 +586,8 @@ async def criar_chamado(
                         "request": request,
                         "dados": dados_funcionario.model_dump(),
                         "user": user,
-                        "error": f"Erro inesperado: {str(e)}"
+                        "error": f"Erro inesperado: {str(e)}",
+                        "versao": "3.1.2"
                     }
                 )
         
@@ -600,7 +610,8 @@ async def criar_chamado(
                 "request": request,
                 "dados": None,
                 "user": user,
-                "error": f"Erro inesperado: {str(e)}"
+                "error": f"Erro inesperado: {str(e)}",
+                "versao": "3.1.2"
             }
         )
 

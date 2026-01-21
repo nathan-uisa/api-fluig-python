@@ -16,6 +16,11 @@
                 <a href="/logout" class="logout-btn-small">Sair</a>
                 {% endif %}
             </div>
+            <div class="version-header">
+                <span class="version-text">Versão {{ versao or "3.1.2" }}</span>
+                <a href="https://github.com/nathan-uisa/api-fluig-python" target="_blank" class="docs-link" title="Abrir repositório no GitHub">GitHub</a>
+                <a href="/docs" target="_blank" class="docs-link" title="Abrir documentação da API">Documentação</a>
+            </div>
         </div>
 
         {% if error %}

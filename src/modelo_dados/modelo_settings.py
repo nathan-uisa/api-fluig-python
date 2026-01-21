@@ -5,7 +5,7 @@ class ConfigEnv(BaseSettings):
     
     WHITE_LIST_DOMAINS: str
     BLACK_LIST_EMAILS: str
-
+    EMAILS_LIST:str
     CK: str
     CS: str
     TK: str
