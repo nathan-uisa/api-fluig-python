@@ -1,0 +1,50 @@
+[
+  {
+    "domain": "fluig.uisa.com.br",
+    "expiry": 1770827496,
+    "httpOnly": true,
+    "name": "jwt.token",
+    "path": "/",
+    "sameSite": "Lax",
+    "secure": true,
+    "value": "eyJraWQiOiIxMzA5OTY4Yy01NGI2LTRiMWEtOWNjYS01OWY5M2FjNjU0NWUiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJpdHNtLmZsdWlnLnVpc2EuY29tLmJyLjEiLCJyb2xlIjoidXNlciIsInRlbmFudCI6MSwidXNlclRlbmFudElkIjoxODE2LCJ1c2VyVHlwZSI6MCwidXNlclVVSUQiOiJkYWVkMzgzNC04NWQyLTRhZWQtODE5Mi1lMTViZGZhNWQwOGEiLCJ0ZW5hbnRVVUlEIjoiMTMwOTk2OGMtNTRiNi00YjFhLTljY2EtNTlmOTNhYzY1NDVlIiwibGFzdFVwZGF0ZURhdGUiOjE3NjM4MzIxNjEwNzIsInVzZXJUaW1lWm9uZSI6IkFtZXJpY2EvQ3VpYWJhIiwiZXhwIjoxNzY5MDI4Njg4LCJpYXQiOjE3NjkwMjc0ODgsImF1ZCI6ImZsdWlnX2F1dGhlbnRpY2F0b3JfcmVzb3VyY2UifQ.XJIBMlGomPHhXSA1__MtV8Q3ndb4Bo75CPMBWcogEdj67f48pVzOgcjUUoVFeyNszDCAK9vmGg5K8G6Q68e39Ai4ELWX81_QE-CgLjKN7Uu_UPyWkhKnd6DdX06yRM9RIid9C3WMNUrTI1UTNwZzUVdyqb274Cdj290GrGirWQPPhTgZ25k177DvyWjSQepF4o7vH7Niimi6IhcesqS84YVwDjoZRoI9EA__5toi4bI_SWjna4vsT144xqO796l9h3io4BZ8K98qwGhV4fgGS4U68-TrfWMG4NoYpfYmb6clB54uizMNCerPlI_5QpK6dYrM5mKzlvoCWLX3yc2RYw"
+  },
+  {
+    "domain": ".uisa.com.br",
+    "expiry": 1803587496,
+    "httpOnly": false,
+    "name": "_ga",
+    "path": "/",
+    "sameSite": "Lax",
+    "secure": false,
+    "value": "GA1.1.1590596377.1769027497"
+  },
+  {
+    "domain": "fluig.uisa.com.br",
+    "httpOnly": true,
+    "name": "JSESSIONID",
+    "path": "/",
+    "sameSite": "Lax",
+    "secure": true,
+    "value": "\"xFig0Eci4Syz_ih1GenIT_3mAw2Ueb0hN7Fbnn4Z.master:fluig1\""
+  },
+  {
+    "domain": ".uisa.com.br",
+    "expiry": 1803587496,
+    "httpOnly": false,
+    "name": "_ga_F0FT6D1NQG",
+    "path": "/",
+    "sameSite": "Lax",
+    "secure": false,
+    "value": "GS2.1.s1769027496$o1$g0$t1769027496$j60$l0$h0"
+  },
+  {
+    "domain": "fluig.uisa.com.br",
+    "httpOnly": true,
+    "name": "JSESSIONIDSSO",
+    "path": "/",
+    "sameSite": "Lax",
+    "secure": true,
+    "value": "gm53qmpusBt6D35lHJTICCqFOSkheWnvqRbn2-YE"
+  }
+]

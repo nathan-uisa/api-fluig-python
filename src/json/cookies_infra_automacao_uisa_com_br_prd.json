@@ -1,23 +1,23 @@
 [
   {
     "domain": "fluig.uisa.com.br",
-    "expiry": 1770814990,
+    "expiry": 1770827502,
     "httpOnly": true,
     "name": "jwt.token",
     "path": "/",
     "sameSite": "Lax",
     "secure": true,
-    "value": "eyJraWQiOiIxMzA5OTY4Yy01NGI2LTRiMWEtOWNjYS01OWY5M2FjNjU0NWUiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJpbmZyYS5hdXRvbWFjYW8udWlzYS5jb20uYnIuMSIsInJvbGUiOiJ1c2VyLGFkbWluIiwidGVuYW50IjoxLCJ1c2VyVGVuYW50SWQiOjE3MzAsInVzZXJUeXBlIjowLCJ1c2VyVVVJRCI6ImQ1ZmZkMzIxLTFkZDktNDgxNi04ZWMzLTU2NzI2MTVkZGIxMCIsInRlbmFudFVVSUQiOiIxMzA5OTY4Yy01NGI2LTRiMWEtOWNjYS01OWY5M2FjNjU0NWUiLCJsYXN0VXBkYXRlRGF0ZSI6MTc2NDk0MjYzNjU5NiwidXNlclRpbWVab25lIjoiQW1lcmljYS9DdWlhYmEiLCJleHAiOjE3NjkwMTYxODMsImlhdCI6MTc2OTAxNDk4MywiYXVkIjoiZmx1aWdfYXV0aGVudGljYXRvcl9yZXNvdXJjZSJ9.Nx-OY_-Ny2SkrfTQlqZu4vgSfZxPFGNV7HHN95EzYDUMUc06te2s9GKZaAsbl6Rxx6b2tq3KqxfZWbysthxon1vPlwWWx0bYcQqCtqCErUhTpwwDUpQc0xjQT9TbrQVFPTM-Lyf5wTUKPwJSJg5ETtW1EPPnJyS1ffu93KEKUKte2T2nLKQrfNBBe1er13-SnybsWMUijjZRCWZ73CY-fBIKKsB1_dEY7pA6HQshqSus-pSon-2VD8o0djcqqzcyC14AI_eoQAOqvnLT_6gN7pZzp-pt_YDn3yoFpe9QOcJOiBUIIrtzFnPNP8qaSBQfuD3rdpvw4PJYK_cv4iB6IQ"
+    "value": "eyJraWQiOiIxMzA5OTY4Yy01NGI2LTRiMWEtOWNjYS01OWY5M2FjNjU0NWUiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJpbmZyYS5hdXRvbWFjYW8udWlzYS5jb20uYnIuMSIsInJvbGUiOiJ1c2VyLGFkbWluIiwidGVuYW50IjoxLCJ1c2VyVGVuYW50SWQiOjE3MzAsInVzZXJUeXBlIjowLCJ1c2VyVVVJRCI6ImQ1ZmZkMzIxLTFkZDktNDgxNi04ZWMzLTU2NzI2MTVkZGIxMCIsInRlbmFudFVVSUQiOiIxMzA5OTY4Yy01NGI2LTRiMWEtOWNjYS01OWY5M2FjNjU0NWUiLCJsYXN0VXBkYXRlRGF0ZSI6MTc2NDk0MjYzNjU5NiwidXNlclRpbWVab25lIjoiQW1lcmljYS9DdWlhYmEiLCJleHAiOjE3NjkwMjg2OTMsImlhdCI6MTc2OTAyNzQ5MywiYXVkIjoiZmx1aWdfYXV0aGVudGljYXRvcl9yZXNvdXJjZSJ9.cOsQcLBOuLcc8HP39Kk4eM5PIQuQ0YAdZPrPEqge0eJjr4bLvBksn8a50Ke5bdYCLNZeAdW4zj2uqnN8tUKSQdkSAl7HeYfBea-EuQjjxrz5RlBwSloA4JbVph1auGuRX5KNJcRXPHhAULjAElk5O9pzO9JIhEyvTIS7ca1cNCtRfC629V3MiPfXvdvxl-tIeNNrX95f58hWForjQL5JatsmVLXNN4LO9X71sSxIWIz400hBFukwDoUnUG71PbrOHxA-_loS75v0-EYkW630T003q2CObvRoAFZ8GrgwhMBunBalYhFrv2R4FXlQ5zcAU99Pyv5YYvugSLO7KuNgzA"
   },
   {
     "domain": ".uisa.com.br",
-    "expiry": 1803574990,
+    "expiry": 1803587500,
     "httpOnly": false,
     "name": "_ga",
     "path": "/",
     "sameSite": "Lax",
     "secure": false,
-    "value": "GA1.1.1794916813.1769014990"
+    "value": "GA1.1.1516917445.1769027501"
   },
   {
     "domain": "fluig.uisa.com.br",
@@ -26,17 +26,17 @@
     "path": "/",
     "sameSite": "Lax",
     "secure": true,
-    "value": "\"ZowbxpVKOAZrG-Aldf-mM07bTURNxsbXMBAlwvzX.master:fluig1\""
+    "value": "\"zc-tdgoGdqJi483k9UFGilHzYnE0ygzqNr4AcBd0.master:fluig1\""
   },
   {
     "domain": ".uisa.com.br",
-    "expiry": 1803574990,
+    "expiry": 1803587500,
     "httpOnly": false,
     "name": "_ga_F0FT6D1NQG",
     "path": "/",
     "sameSite": "Lax",
     "secure": false,
-    "value": "GS2.1.s1769014990$o1$g0$t1769014990$j60$l0$h0"
+    "value": "GS2.1.s1769027500$o1$g0$t1769027500$j60$l0$h0"
   },
   {
     "domain": "fluig.uisa.com.br",
@@ -45,6 +45,6 @@
     "path": "/",
     "sameSite": "Lax",
     "secure": true,
-    "value": "vLzZeYdsJTUDPe26MdKoLf7-UjOtQs-MD1OxLS2Z"
+    "value": "UeXdUtZGWCHN_TmlPesMelKQb0hfO5Ecgp4Y3cLH"
   }
 ]

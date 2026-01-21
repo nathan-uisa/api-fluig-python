@@ -29,10 +29,6 @@ class AberturaChamadoEmail(BaseModel):
     telefone: str | None = None
     file_id: str | None = None
 
-class AberturaChamadoClassificadoMovit(BaseModel):
-    titulo: str
-    descricao: str
-
 # Dados para a rota fluig/chamado/abrir-classificado
 class AberturaChamadoClassificado(BaseModel):
     titulo: str

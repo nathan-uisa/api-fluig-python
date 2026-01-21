@@ -2,6 +2,8 @@
 
 API REST desenvolvida com FastAPI para integração com o sistema Fluig, permitindo abertura automatizada de chamados nos ambientes de produção (PRD) e qualidade (QLD), com suporte a processamento inteligente via Inteligência Artificial e gerenciamento automático de autenticação via cookies.
 
+**Versão Atual:** 3.5.0
+
 ## Índice
 
 - [Funcionalidades](#funcionalidades)
@@ -27,7 +29,6 @@ API REST desenvolvida com FastAPI para integração com o sistema Fluig, permiti
 - **Gerenciamento de Serviços**: Consulta de lista de serviços e detalhes de serviços específicos
 - **Consulta de Datasets**: Busca de dados em datasets do Fluig (colleague, funcionários, aprovadores) com suporte a busca por CHAPA
 - **Detalhes de Chamados**: Obtenção de detalhes completos de chamados existentes
-- **Integração com Terceiros**: Suporte especializado para integração com Movti, incluindo extração inteligente de usuários via IA
 - **Autenticação Automática**: Sistema de gerenciamento de cookies com validação de expiração e re-autenticação automática
 - **Inteligência Artificial**: Extração de informações de chamados usando Google Generative AI (Gemini)
 - **Autenticação via API Key**: Proteção de todas as rotas com API Key
@@ -403,46 +404,9 @@ POST /api/v1/fluig/qld/datasets/buscar
 
 ---
 
-### 7. Abertura de Chamado Movti (Terceiro)
+### 7. Rotas do Webapp
 
-**POST** `/api/v1/terceiros/{provider}/chamados/abrir-classificado`
-
-Abre um chamado classificado no Fluig para terceiros, utilizando IA para extrair informações do usuário da descrição.
-
-**Path Parameters:**
-- `provider` (obrigatório): Provider terceiro (`movit`)
-
-**Body:**
-```json
-{
-  "titulo": "Título do chamado",
-  "descricao": "Descrição do chamado que pode conter email ou chapa do usuário"
-}
-```
-
-**Características:**
-- Utiliza IA (Google Gemini) para extrair email ou chapa do usuário da descrição
-- Se encontrar um usuário válido no Fluig, utiliza os dados reais
-- Caso contrário, utiliza dados de um usuário fake pré-configurado
-- Sempre utiliza o serviço fixo `1142587` para Movti
-- Ambiente sempre PRD para terceiros
-
-**Resposta de Sucesso:**
-```json
-12345
-```
-(processInstanceId do chamado criado - retornado como número)
-
-**Exemplo:**
-```bash
-POST /api/v1/terceiros/movit/chamados/abrir-classificado
-```
-
----
-
-### 8. Rotas do Webapp
-
-#### 8.1. Login
+#### 7.1. Login
 
 **GET** `/login`
 
@@ -456,7 +420,7 @@ Callback do OAuth 2.0 após autenticação.
 
 Encerra a sessão do usuário.
 
-#### 8.2. Criação de Chamados
+#### 7.2. Criação de Chamados
 
 **GET** `/chamado`
 
@@ -524,7 +488,6 @@ api-fluig-python/
 │   │   ├── rt_fluig_chamados.py     # Rotas unificadas de chamados (PRD/QLD)
 │   │   ├── rt_fluig_servicos.py     # Rotas unificadas de serviços (PRD/QLD)
 │   │   ├── rt_fluig_datasets.py     # Rotas unificadas de datasets (PRD/QLD)
-│   │   ├── rt_terceiro.py           # Rotas para integrações de terceiros (Movti)
 │   │   └── webapp/
 │   │       ├── rt_login.py          # Rotas de autenticação do webapp
 │   │       └── rt_chamado.py        # Rotas de criação de chamados do webapp
@@ -539,8 +502,6 @@ api-fluig-python/
 │   │   │   └── chamado.html         # Template HTML do formulário de chamados
 │   │   ├── planilha.py              # Processamento de planilhas Excel
 │   │   └── abrir_chamados.py        # Lógica de criação de chamados em lote
-│   ├── terceiro/
-│   │   └── movit_core.py            # Lógica específica para Movti
 │   ├── utilitarios_centrais/
 │   │   ├── logger.py                # Configuração de logging
 │   │   ├── payloads.py              # Construção de payloads para chamados
@@ -686,16 +647,6 @@ curl -X POST "http://127.0.0.1:3000/api/v1/fluig/prd/datasets/buscar" \
   }'
 ```
 
-### Abertura de chamado Movti (Terceiro):
-```bash
-curl -X POST "http://127.0.0.1:3000/api/v1/terceiros/movit/chamados/abrir-classificado" \
-  -H "API-KEY: sua_api_key" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "titulo": "Alerta de Segurança",
-    "descricao": "Alerta detectado para o usuário usuario@email.com.br"
-  }'
-```
 
 ## Logs
 

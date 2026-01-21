@@ -309,3 +309,37 @@ Versão 3.0.2
     * Exibe o solicitante processado com placeholders substituídos
     * Permite verificar o solicitante antes de criar os chamados
     * Integração completa com o processamento de placeholders da planilha
+
+Versão 3.1.2
+  IMPLEMENTAÇÕES:
+  - Substituição do sistema de keepalive por login automático pelo navegador:
+    * Removido sistema de renovação via endpoint keepAlive (não funciona com navegador fechado)
+    * Implementado sistema de login automático via Selenium que funciona mesmo com navegador fechado
+    * Thread em background monitora validade dos cookies e faz login automaticamente quando necessário
+    * Login automático é acionado 5 minutos antes da expiração do cookie (TEMPO_ANTECEDENCIA_LOGIN)
+    * Verificação periódica a cada 60 segundos de todas as sessões ativas
+  - Funções removidas:
+    * renovar_sessao_keepalive() - Removida (dependia de navegador aberto)
+    * _atualizar_cookies() - Removida (usada apenas pelo keepalive)
+    * iniciar_renovacao_automatica() - Substituída por iniciar_login_automatico()
+    * parar_renovacao_automatica() - Substituída por parar_login_automatico()
+  - Novas funções:
+    * _verificar_e_fazer_login_automatico() - Thread que verifica e faz login automático pelo navegador
+    * iniciar_login_automatico() - Inicia thread de login automático em background
+    * parar_login_automatico() - Encerra thread de login automático graciosamente
+  - Melhorias no gerenciamento de autenticação:
+    * garantir_autenticacao() agora faz login direto pelo navegador quando cookies estão expirados
+    * registrar_sessao_ativa() agora aceita parâmetro senha opcional para login automático
+    * O intervalo de login é baseado na validade do cookie obtido após cada login
+    * Sistema funciona independente do estado do navegador (fechado ou aberto)
+  - Correção no campo telefone de contato:
+    * Correção do nome do parâmetro no endpoint POST /chamado (telefone_contato ao invés de num_tel_contato)
+    * Prioriza telefone preenchido no formulário sobre telefone do dataset de funcionários
+
+Versão 3.5.0
+  IMPLEMENTAÇÕES:
+  - Ajustes de estilo CSS na interface do webapp:
+    * Botão de logout (.logout-btn-small): box-shadow atualizado de rgba(220, 53, 69, 0.15) para rgba(220, 53, 69, 0.3)
+    * Link de documentação (.docs-link): adicionados margin-left e margin-right de 5px para melhor espaçamento
+    * Cabeçalho de versão (.version-header): adicionados margin-left e margin-right de 0px para alinhamento correto
+    * Texto de versão (.version-text): adicionados margin-left e margin-right de 0px para remover espaçamento indesejado
