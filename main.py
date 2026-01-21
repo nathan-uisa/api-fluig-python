@@ -25,11 +25,6 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info("Parando renovação automática de cookies...")
     parar_renovacao_automatica()
-    
-    # Fechar todos os navegadores abertos ao encerrar a aplicação
-    logger.info("Fechando navegadores abertos...")
-    from src.web.web_driver_manager import fechar_todos_drivers
-    fechar_todos_drivers()
 
 
 app = FastAPI(

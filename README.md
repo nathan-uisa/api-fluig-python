@@ -28,12 +28,11 @@ API REST desenvolvida com FastAPI para integração com o sistema Fluig, permiti
 - **Consulta de Datasets**: Busca de dados em datasets do Fluig (colleague, funcionários, aprovadores) com suporte a busca por CHAPA
 - **Detalhes de Chamados**: Obtenção de detalhes completos de chamados existentes
 - **Integração com Terceiros**: Suporte especializado para integração com Movti, incluindo extração inteligente de usuários via IA
-- **Autenticação Automática**: Sistema de gerenciamento de cookies com validação de expiração e re-autenticação automática via navegador
+- **Autenticação Automática**: Sistema de gerenciamento de cookies com validação de expiração e re-autenticação automática
 - **Inteligência Artificial**: Extração de informações de chamados usando Google Generative AI (Gemini)
 - **Autenticação via API Key**: Proteção de todas as rotas com API Key
 - **Logs Completos**: Sistema abrangente de logging com rastreamento detalhado em todas as operações
 - **Validação Robusta**: Tratamento de erros e validações em todas as etapas do processo
-- **Renovação Automática Frontend**: Renovação periódica de sessão via webapp (a cada 10 minutos)
 
 ## Requisitos
 
@@ -481,7 +480,6 @@ Cria um chamado único ou processa planilha para criação em lote.
 - **POST** `/chamado/preview`: Gera prévia dos chamados com placeholders substituídos
 - **GET** `/listar_servicos`: Retorna lista de serviços para autocomplete
 - **POST** `/buscar_detalhes_servico`: Busca detalhes de um serviço por documentid
-- **POST** `/renovar_sessao`: Renova sessão do Fluig (renovação automática a cada 10 minutos)
 
 **Características:**
 - Autenticação via sessão (Google OAuth 2.0)
@@ -494,7 +492,6 @@ Cria um chamado único ou processa planilha para criação em lote.
 - Modal de processamento com feedback em tempo real
 - Visualização prévia dos chamados incluindo solicitante processado
 - Cache local de detalhes de serviços
-- Renovação automática de sessão a cada 10 minutos via frontend
 
 ---
 
@@ -515,7 +512,6 @@ api-fluig-python/
 │   │   ├── web_auth_manager.py      # Gerenciador centralizado de autenticação
 │   │   ├── web_cookies.py           # Gerenciamento de cookies (salvar, carregar, validar)
 │   │   ├── web_driver.py            # Configuração do ChromeDriver/Selenium
-│   │   ├── web_driver_manager.py    # Gerenciador de drivers
 │   │   ├── web_login_fluig.py       # Login via Selenium (unificado para PRD e QLD)
 │   │   ├── web_servicos_fluig.py    # Funções para consulta de serviços
 │   │   └── web_chamado_fluig.py     # Funções para consulta de chamados
@@ -599,9 +595,6 @@ O sistema utiliza autenticação via cookies obtidos através de login via Selen
 - **Gerenciamento de Cookies**: Cookies são salvos em `src/json/cookies_{usuario}_{ambiente}.json`
 - **Validação de Expiração**: O sistema verifica automaticamente se os cookies estão expirados (incluindo JWT)
 - **Re-autenticação Automática**: Se os cookies estiverem expirados ou inválidos, o sistema realiza login novamente automaticamente
-- **Renovação via Navegador**: Prioriza renovação de cookies diretamente do navegador
-- **Fallback para keepAlive**: Se navegador não estiver disponível, usa endpoint keepAlive como fallback
-- **Renovação Automática**: Thread em background renova sessões automaticamente antes da expiração
 - **Usuários Separados**: Cookies são gerenciados separadamente para cada usuário e ambiente
 - **Colleague ID por Ambiente**: 
   - Ambiente PRD: usa `ADMIN_COLLEAGUE_ID`

@@ -695,13 +695,6 @@ function buscarESelecionarServico(documentid) {
         return;
     }
     
-    // Mostrar modal de loading com blur
-    const modalLoadingServico = document.getElementById('modal-loading-servico');
-    if (modalLoadingServico) {
-        modalLoadingServico.style.display = 'flex';
-        document.body.classList.add('modal-loading-active');
-    }
-    
     fetch('/buscar_detalhes_servico', {
         method: 'POST',
         headers: {
@@ -713,12 +706,6 @@ function buscarESelecionarServico(documentid) {
     })
     .then(response => response.json())
     .then(data => {
-        // Ocultar modal de loading
-        if (modalLoadingServico) {
-            modalLoadingServico.style.display = 'none';
-            document.body.classList.remove('modal-loading-active');
-        }
-        
         if (data.sucesso && data.servico) {
             preencherCamposServico(data.servico);
             const fonte = data.fonte || 'desconhecida';
@@ -728,11 +715,6 @@ function buscarESelecionarServico(documentid) {
         }
     })
     .catch(error => {
-        // Ocultar modal de loading em caso de erro
-        if (modalLoadingServico) {
-            modalLoadingServico.style.display = 'none';
-            document.body.classList.remove('modal-loading-active');
-        }
         console.error('Erro ao buscar detalhes do serviço:', error);
     });
 }
@@ -808,65 +790,5 @@ function escapeHtml(text) {
         "'": '&#039;'
     };
     return text.replace(/[&<>"']/g, function(m) { return map[m]; });
-}
-
-// Variáveis para renovação periódica de sessão
-let intervaloRenovacaoSessao = null;
-const INTERVALO_RENOVACAO_MINUTOS = 10; // Renovar a cada 10 minutos
-
-// Função para renovar sessão do Fluig
-async function renovarSessaoFluig() {
-    try {
-        const response = await fetch('/renovar_sessao', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
-        
-        const data = await response.json();
-        
-        if (data.sucesso) {
-            const tempoRestante = data.tempo_restante_minutos || 0;
-            console.log(`[Renovação de Sessão] Sessão renovada com sucesso. Tempo restante: ${tempoRestante} minutos`);
-        } else {
-            console.warn(`[Renovação de Sessão] Falha ao renovar: ${data.erro || 'Erro desconhecido'}`);
-        }
-    } catch (error) {
-        console.error('[Renovação de Sessão] Erro ao renovar sessão:', error);
-    }
-}
-
-// Iniciar renovação automática de sessão
-function iniciarRenovacaoAutomaticaSessao() {
-    // Limpar intervalo anterior se existir
-    if (intervaloRenovacaoSessao) {
-        clearInterval(intervaloRenovacaoSessao);
-    }
-    
-    // Renovar imediatamente ao carregar a página
-    renovarSessaoFluig();
-    
-    // Configurar renovação periódica (a cada X minutos)
-    const intervaloMs = INTERVALO_RENOVACAO_MINUTOS * 60 * 1000;
-    intervaloRenovacaoSessao = setInterval(renovarSessaoFluig, intervaloMs);
-    
-    console.log(`[Renovação de Sessão] Renovação automática iniciada - Renovando a cada ${INTERVALO_RENOVACAO_MINUTOS} minutos`);
-}
-
-// Parar renovação automática (útil se necessário)
-function pararRenovacaoAutomaticaSessao() {
-    if (intervaloRenovacaoSessao) {
-        clearInterval(intervaloRenovacaoSessao);
-        intervaloRenovacaoSessao = null;
-        console.log('[Renovação de Sessão] Renovação automática parada');
-    }
-}
-
-// Iniciar renovação automática quando a página carregar
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', iniciarRenovacaoAutomaticaSessao);
-} else {
-    iniciarRenovacaoAutomaticaSessao();
 }
 

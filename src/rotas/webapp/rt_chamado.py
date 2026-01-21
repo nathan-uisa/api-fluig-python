@@ -12,7 +12,7 @@ from src.site.planilha import Planilha, PATH_TO_TEMP
 from src.site.abrir_chamados import AbrirChamados
 from src.fluig.fluig_core import FluigCore
 from src.web.web_servicos_fluig import obter_detalhes_servico_fluig
-from src.web.web_auth_manager import obter_cookies_validos, garantir_autenticacao, obter_tempo_expiracao_jwt
+from src.web.web_auth_manager import obter_cookies_validos
 from src.utilitarios_centrais.json_utils import salvar_detalhes_servico_json
 from src.modelo_dados.modelo_settings import ConfigEnvSetings
 import os
@@ -1129,70 +1129,6 @@ async def buscar_detalhes_servico(request: Request, busca: BuscarDetalhesServico
             content={
                 "sucesso": False,
                 "erro": f"Erro inesperado ao buscar detalhes do serviço: {str(e)}"
-            }
-        )
-
-
-@router.post("/renovar_sessao", response_class=JSONResponse)
-async def renovar_sessao(request: Request):
-    """
-    Renova a sessão do Fluig usando os cookies da sessão atual do navegador.
-    Mantém a sessão ativa sem necessidade de re-login.
-    """
-    user = request.session.get('user')
-    if not user:
-        return JSONResponse(
-            status_code=401,
-            content={
-                "sucesso": False,
-                "erro": "Usuário não autenticado"
-            }
-        )
-    
-    try:
-        ambiente = "PRD"
-        usuario = ConfigEnvSetings.FLUIG_ADMIN_USER
-        senha = ConfigEnvSetings.FLUIG_ADMIN_PASS
-        
-        # Garante autenticação válida (verifica e renova se necessário)
-        sucesso, cookies = garantir_autenticacao(
-            ambiente=ambiente,
-            forcar_login=False,
-            usuario=usuario,
-            senha=senha
-        )
-        
-        if not sucesso or not cookies:
-            return JSONResponse(
-                status_code=500,
-                content={
-                    "sucesso": False,
-                    "erro": "Falha ao renovar sessão"
-                }
-            )
-        
-        # Obtém tempo restante até expiração
-        tempo_restante = obter_tempo_expiracao_jwt(cookies)
-        tempo_restante_minutos = tempo_restante // 60 if tempo_restante else None
-        
-        logger.info(f"[renovar_sessao] Sessão renovada com sucesso - Tempo restante: {tempo_restante_minutos} minutos")
-        
-        return JSONResponse(content={
-            "sucesso": True,
-            "mensagem": "Sessão renovada com sucesso",
-            "tempo_restante_minutos": tempo_restante_minutos,
-            "tempo_restante_segundos": tempo_restante
-        })
-        
-    except Exception as e:
-        logger.error(f"[renovar_sessao] Erro ao renovar sessão: {str(e)}")
-        import traceback
-        logger.debug(f"Traceback: {traceback.format_exc()}")
-        return JSONResponse(
-            status_code=500,
-            content={
-                "sucesso": False,
-                "erro": f"Erro ao renovar sessão: {str(e)}"
             }
         )
 

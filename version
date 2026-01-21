@@ -309,30 +309,3 @@ Versão 3.0.2
     * Exibe o solicitante processado com placeholders substituídos
     * Permite verificar o solicitante antes de criar os chamados
     * Integração completa com o processamento de placeholders da planilha
-
-Versão 3.1.0
-  IMPLEMENTAÇÕES:
-  - Sistema de renovação de cookies via navegador aberto (mais seguro):
-    * Novo módulo web_driver_manager.py para gerenciar drivers mantendo navegadores abertos
-    * Navegador permanece aberto após login, permitindo renovação direta de cookies
-    * Renovação via navegador real ao invés de endpoint keepAlive (mais seguro)
-    * Gerenciamento automático de drivers por ambiente e usuário
-    * Fechamento automático de todos os navegadores ao encerrar a aplicação
-  - Melhorias na função de renovação de sessão:
-    * renovar_sessao_keepalive() agora prioriza renovação via navegador aberto
-    * Fallback automático para endpoint keepAlive apenas se navegador não estiver disponível
-    * Extração direta de cookies do navegador para maior segurança
-    * Verificação automática se navegador está na página correta do Fluig
-  - Renovação automática no frontend:
-    * Renovação automática a cada 10 minutos (configurável)
-    * Renovação imediata ao carregar a página
-    * Logs no console para acompanhamento
-    * Mantém sessão do navegador sempre ativa
-  - Modal de loading:
-    * Novo modal de carregamento durante busca de detalhes do serviço
-    * Melhor experiência visual para o usuário
-    * Transições suaves de exibição/ocultação
-  - Correção no campo telefone de contato:
-    * Campo telefone_contato do formulário agora é corretamente processado
-    * Prioriza telefone preenchido no formulário sobre telefone do dataset
-    * Validação adequada do campo obrigatório
