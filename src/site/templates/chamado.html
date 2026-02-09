@@ -5,24 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ITSM - Abertura de Chamado</title>
     <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/chamados-sidebar.css">
 </head>
 <body>
     <div class="main-wrapper">
-        <div class="page-header">
-            <h1 class="page-title">ITSM - Abertura de Chamado</h1>
-            <div class="user-info-header">
-                {% if user %}
-                <span>{{ user.name or user.email }}</span>
-                <a href="/logout" class="logout-btn-small">Sair</a>
-                {% endif %}
-            </div>
-            <div class="version-header">
-                <span class="version-text">Versão {{ versao or "3.5.0" }}</span>
-                <a href="https://github.com/nathan-uisa/api-fluig-python" target="_blank" class="docs-link" title="Abrir repositório no GitHub">GitHub</a>
-                <a href="/docs" target="_blank" class="docs-link" title="Abrir documentação da API">Documentação</a>
-            </div>
-        </div>
-
         {% if error %}
         <div class="flash error">{{ error }}</div>
         {% endif %}
@@ -31,6 +17,60 @@
         <div class="flash success">{{ success }}</div>
         {% endif %}
 
+        <div class="content-wrapper">
+            <!-- Sidebar de Chamados (Esquerda) -->
+            <div class="chamados-sidebar" id="chamados-sidebar">
+                <div class="sidebar-header">
+                    <h3>MEUS CHAMADOS</h3>
+                    <!--
+                    <button type="button" class="sidebar-toggle" id="sidebar-toggle" title="Ocultar/Mostrar">
+                        <span class="toggle-icon">◀</span>
+                    </button>
+                    -->
+                </div>
+                <div class="sidebar-content">
+                    <div id="chamados-loading" class="chamados-loading">
+                        <div class="spinner-small"></div>
+                        <span>Carregando chamados...</span>
+                    </div>
+                    <div id="chamados-error" class="chamados-error" style="display: none;"></div>
+                    <div id="chamados-list" class="chamados-list"></div>
+                    <div id="chamados-pagination" class="pagination-container" style="display: none;"></div>
+                </div>
+            </div>
+
+            <!-- Sidebar de Chamados do Grupo (Direita) -->
+            <div class="chamados-sidebar chamados-sidebar-right" id="chamados-sidebar-right">
+                <div class="sidebar-header">
+                    <h3>TODOS ANALISTAS</h3>
+                </div>
+                <div class="sidebar-content">
+                    <div id="chamados-grupo-loading" class="chamados-loading">
+                        <div class="spinner-small"></div>
+                        <span>Carregando chamados...</span>
+                    </div>
+                    <div id="chamados-grupo-error" class="chamados-error" style="display: none;"></div>
+                    <div id="chamados-grupo-list" class="chamados-list"></div>
+                    <div id="chamados-grupo-pagination" class="pagination-container" style="display: none;"></div>
+                </div>
+            </div>
+
+            <!-- Conteúdo Principal -->
+            <div class="main-content" id="main-content">
+                <div class="page-header">
+                    <h1 class="page-title">ITSM - Abertura de Chamado</h1>
+                    <div class="user-info-header">
+                        {% if user %}
+                        <span>{{ user.name or user.email }}</span>
+                        <a href="/logout" class="logout-btn-small">Sair</a>
+                        {% endif %}
+                    </div>
+                    <div class="version-header">
+                        <span class="version-text">Versão {{ versao or "5.3.0" }}</span>
+                        <a href="https://github.com/nathan-uisa/api-fluig-python" target="_blank" class="docs-link" title="Abrir repositório no GitHub">GitHub</a>
+                        <a href="/docs" target="_blank" class="docs-link" title="Abrir documentação da API">Documentação</a>
+                    </div>
+                </div>
         {% if dados %}
         <form method="POST" enctype="multipart/form-data" id="formChamado">
             <!-- Seção: Dados Gerais -->
@@ -252,7 +292,9 @@
             <a href="/login" class="btn-primary">Voltar ao Login</a>
         </div>
         {% endif %}
-    </div>
+            </div> <!-- Fim main-content -->
+        </div> <!-- Fim content-wrapper -->
+    </div> <!-- Fim main-wrapper -->
 
     <!-- Modal de Prévia -->
     <div id="modal-preview" class="modal-overlay" style="display: none;">

@@ -9,6 +9,31 @@ from src.web.web_servicos_fluig import obter_detalhes_servico_fluig
 from src.web.web_auth_manager import obter_cookies_validos
 from src.modelo_dados.modelo_settings import ConfigEnvSetings
 from src.utilitarios_centrais.logger import logger
+from src.utilitarios_centrais.fake_user import FakeUser
+
+
+def _email_na_lista_fakeuser(email: str) -> bool:
+    """
+    Verifica se o email está na lista EMAILS_LIST do .env
+    
+    Args:
+        email: Email do solicitante
+    
+    Returns:
+        True se o email está na lista, False caso contrário
+    """
+    try:
+        emails_list_str = ConfigEnvSetings.EMAILS_LIST
+        if not emails_list_str or not emails_list_str.strip():
+            return False
+        
+        # Converte string separada por vírgulas em lista
+        emails_list = [e.strip().lower() for e in emails_list_str.split(',') if e.strip()]
+        
+        return email.lower().strip() in emails_list
+    except Exception as e:
+        logger.error(f"[_email_na_lista_fakeuser] Erro ao verificar email: {str(e)}")
+        return False
 
 
 def PayloadChamadoNormal(Item: AberturaChamado, ambiente: str = "PRD", usuario_atendido: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -45,27 +70,51 @@ def PayloadChamadoNormal(Item: AberturaChamado, ambiente: str = "PRD", usuario_a
     try:
         logger.info(f"[PayloadChamadoNormal] Iniciando montagem - Usuário: {Item.usuario}, UsuarioAtendido: {usuario_atendido}")
 
-        fluig_core = FluigCore(ambiente=ambiente)
-
-        # Busca dados do usuário no dataset colleague
-        dados_colleague = fluig_core.Dataset_config(dataset_id="colleague", user=Item.usuario)
-        if hasattr(dados_colleague, "status_code") or not dados_colleague.get("content"):
-            logger.error(f"[PayloadChamadoNormal] Usuário '{Item.usuario}' não encontrado no dataset colleague")
-            return None
-
-        content_colleague = dados_colleague.get("content", [])
-        if isinstance(content_colleague, list):
-            colleague_data = content_colleague[0]
+        # Verifica se o email está na lista de FakeUser
+        usar_fake_user = _email_na_lista_fakeuser(Item.usuario)
+        
+        if usar_fake_user:
+            logger.info(f"[PayloadChamadoNormal] Email '{Item.usuario}' encontrado na EMAILS_LIST - utilizando FakeUser")
+            fake_user_data = FakeUser()
+            fake_content = fake_user_data.get('content', {})
+            
+            if not fake_content:
+                logger.error(f"[PayloadChamadoNormal] FakeUser não retornou dados")
+                return None
+            
+            colleague_id = fake_content.get('colleagueId', '')
+            target_assignee = fake_content.get('targetAssignee', colleague_id)
+            colleague_name = fake_content.get('Nome', '')
+            colleague_email = fake_content.get('Email', '')
+            
+            if not colleague_id:
+                logger.error(f"[PayloadChamadoNormal] colleagueId não encontrado no FakeUser")
+                return None
+            
+            logger.info(f"[PayloadChamadoNormal] Dados do FakeUser obtidos - ID: {colleague_id}, Nome: {colleague_name}")
         else:
-            colleague_data = content_colleague.get("values", [{}])[0]
+            fluig_core = FluigCore(ambiente=ambiente)
 
-        colleague_id = colleague_data.get("colleagueId", "")
-        colleague_name = colleague_data.get("colleagueName", Item.usuario)
-        colleague_email = colleague_data.get("mail", Item.usuario)
+            # Busca dados do usuário no dataset colleague
+            dados_colleague = fluig_core.Dataset_config(dataset_id="colleague", user=Item.usuario)
+            if hasattr(dados_colleague, "status_code") or not dados_colleague.get("content"):
+                logger.error(f"[PayloadChamadoNormal] Usuário '{Item.usuario}' não encontrado no dataset colleague")
+                return None
 
-        if not colleague_id:
-            logger.error(f"[PayloadChamadoNormal] colleagueId não encontrado para '{Item.usuario}'")
-            return None
+            content_colleague = dados_colleague.get("content", [])
+            if isinstance(content_colleague, list):
+                colleague_data = content_colleague[0]
+            else:
+                colleague_data = content_colleague.get("values", [{}])[0]
+
+            colleague_id = colleague_data.get("colleagueId", "")
+            colleague_name = colleague_data.get("colleagueName", Item.usuario)
+            colleague_email = colleague_data.get("mail", Item.usuario)
+            target_assignee = colleague_id
+
+            if not colleague_id:
+                logger.error(f"[PayloadChamadoNormal] colleagueId não encontrado para '{Item.usuario}'")
+                return None
 
         telefone_contato = Item.telefone.strip() if Item.telefone and Item.telefone.strip() else "65"
         dt_abertura = datetime.now().strftime("%d/%m/%Y %H:%M")
@@ -92,11 +141,12 @@ def PayloadChamadoNormal(Item: AberturaChamado, ambiente: str = "PRD", usuario_a
         payload = {
             "targetState": "0",
             "subProcessTargetState": "0",
-            "targetAssignee": colleague_id,
+            "targetAssignee": target_assignee,
             "formFields": form_fields
         }
 
         logger.info("[PayloadChamadoNormal] Payload montado com sucesso")
+        logger.info(f"[PayloadChamadoNormal] Payload: {payload}")
         return payload
 
     except Exception as e:
@@ -111,9 +161,12 @@ def PayloadChamadoClassificado(Item: AberturaChamadoClassificado, ambiente: str 
     """
     Monta payload para abertura de chamado classificado no Fluig
     
+    Se o email do solicitante estiver na lista EMAILS_LIST do .env,
+    utiliza FakeUser() para os dados do solicitante.
+    
     Busca informações necessárias de:
-    - Dataset colleague: dados do usuário solicitante
-    - Dataset ds_funcionarios: dados do funcionário
+    - Dataset colleague: dados do usuário solicitante (ou FakeUser se na lista)
+    - Dataset ds_funcionarios: dados do funcionário (ou FakeUser se na lista)
     - Detalhes do serviço: informações do serviço solicitado
     
     Args:
@@ -134,63 +187,98 @@ def PayloadChamadoClassificado(Item: AberturaChamadoClassificado, ambiente: str 
         if not cookies:
             logger.error("[PayloadChamadoClassificado] Falha ao obter autenticação válida")
             return None
-
-        logger.info(f"[PayloadChamadoClassificado] Buscando dados do usuário no dataset colleague...")
-        fluig_core = FluigCore(ambiente=ambiente)
-        dados_colleague = fluig_core.Dataset_config(dataset_id="colleague", user=Item.usuario)
         
+        # Verifica se o email está na lista de FakeUser
+        usar_fake_user = _email_na_lista_fakeuser(Item.usuario)
 
-        if hasattr(dados_colleague, 'status_code'):
-            logger.error(f"[PayloadChamadoClassificado] Erro ao buscar dados do colleague - Status: {dados_colleague.status_code}")
-            return None
-        
-        if not dados_colleague or not dados_colleague.get('content'):
-            logger.error(f"[PayloadChamadoClassificado] Usuário '{Item.usuario}' não encontrado no dataset colleague")
-            return None
-        content = dados_colleague.get('content', [])
-        if isinstance(content, list):
-            colleague_data = content[0] if content else None
+        if usar_fake_user:
+            logger.info(f"[PayloadChamadoClassificado] Email '{Item.usuario}' encontrado na EMAILS_LIST - utilizando FakeUser")
+            fake_user_data = FakeUser()
+            fake_content = fake_user_data.get('content', {})
+            
+            if not fake_content:
+                logger.error(f"[PayloadChamadoClassificado] FakeUser não retornou dados")
+                return None
+
+            colleague_id = fake_content.get('colleagueId', '')
+            target_assignee = fake_content.get('targetAssignee', colleague_id)
+            colleague_name = fake_content.get('Nome', '')
+            colleague_email = fake_content.get('Email', '')
+            
+            if not colleague_id:
+                logger.error(f"[PayloadChamadoClassificado] colleagueId não encontrado no FakeUser")
+                return None
+            
+            if not target_assignee:
+                logger.warning(f"[PayloadChamadoClassificado] targetAssignee não encontrado no FakeUser - usando colleagueId")
+                target_assignee = colleague_id
+            
+            logger.info(f"[PayloadChamadoClassificado] Dados do FakeUser (colleague) obtidos - ID: {colleague_id}, targetAssignee: {target_assignee}, Nome: {colleague_name}")
+            
+            # Dados do funcionário também vêm do FakeUser
+            ds_cargo = fake_content.get('Função', '')
+            ds_secao = fake_content.get('Seção', '')
+            num_cr_elab = fake_content.get('Centro_Custo', '')
+            ds_empresa = fake_content.get('Empresa', '')
+            logger.info(f"[PayloadChamadoClassificado] Dados do FakeUser (funcionário) obtidos - Cargo: {ds_cargo}, Seção: {ds_secao}")
         else:
-            colleague_data = content.get('values', [{}])[0] if isinstance(content.get('values'), list) and content.get('values') else None
-        
-        if not colleague_data:
-            logger.error(f"[PayloadChamadoClassificado] Nenhum dado retornado do dataset colleague para '{Item.usuario}'")
-            return None
-        
-        colleague_id = colleague_data.get('colleagueId', '')
-        colleague_name = colleague_data.get('colleagueName', '')
-        colleague_email = colleague_data.get('mail', '')
-        target_assignee = colleague_id
-        
-        if not colleague_id:
-            logger.error(f"[PayloadChamadoClassificado] colleagueId não encontrado para usuário '{Item.usuario}'")
-            return None
-        
-        logger.info(f"[PayloadChamadoClassificado] Dados do colleague obtidos - ID: {colleague_id}, Nome: {colleague_name}")
+            logger.info(f"[PayloadChamadoClassificado] Buscando dados do usuário no dataset colleague...")
+            fluig_core = FluigCore(ambiente=ambiente)
+            dados_colleague = fluig_core.Dataset_config(dataset_id="colleague", user=Item.usuario)
+            
 
-        logger.info(f"[PayloadChamadoClassificado] Buscando dados do funcionário no dataset ds_funcionarios...")
-        dados_funcionarios = fluig_core.Dataset_config(dataset_id="ds_funcionarios", user=Item.usuario)
-        
-        funcionario_data = None
-        if not hasattr(dados_funcionarios, 'status_code') and dados_funcionarios and dados_funcionarios.get('content'):
-            content_func = dados_funcionarios.get('content', [])
-            if isinstance(content_func, list):
-                funcionario_data = content_func[0] if content_func else None
+            if hasattr(dados_colleague, 'status_code'):
+                logger.error(f"[PayloadChamadoClassificado] Erro ao buscar dados do colleague - Status: {dados_colleague.status_code}")
+                return None
+            
+            if not dados_colleague or not dados_colleague.get('content'):
+                logger.error(f"[PayloadChamadoClassificado] Usuário '{Item.usuario}' não encontrado no dataset colleague")
+                return None
+            content = dados_colleague.get('content', [])
+            if isinstance(content, list):
+                colleague_data = content[0] if content else None
             else:
-                funcionario_data = content_func.get('values', [{}])[0] if isinstance(content_func.get('values'), list) and content_func.get('values') else None
-        
-        if not funcionario_data:
-            logger.warning(f"[PayloadChamadoClassificado] Funcionário '{Item.usuario}' não encontrado no dataset ds_funcionarios - usando valores padrão")
-            ds_cargo = ""
-            ds_secao = ""
-            num_cr_elab = ""
-            ds_empresa = ""
-        else:
-            ds_cargo = funcionario_data.get('Função', '')
-            ds_secao = funcionario_data.get('Seção', '')
-            num_cr_elab = funcionario_data.get('Centro de Custo', '')
-            ds_empresa = funcionario_data.get('Empresa', '')
-            logger.info(f"[PayloadChamadoClassificado] Dados do funcionário obtidos - Cargo: {ds_cargo}, Seção: {ds_secao}")
+                colleague_data = content.get('values', [{}])[0] if isinstance(content.get('values'), list) and content.get('values') else None
+            
+            if not colleague_data:
+                logger.error(f"[PayloadChamadoClassificado] Nenhum dado retornado do dataset colleague para '{Item.usuario}'")
+                return None
+            
+            colleague_id = colleague_data.get('colleagueId', '')
+            colleague_name = colleague_data.get('colleagueName', '')
+            colleague_email = colleague_data.get('mail', '')
+            target_assignee = colleague_id
+            
+            if not colleague_id:
+                logger.error(f"[PayloadChamadoClassificado] colleagueId não encontrado para usuário '{Item.usuario}'")
+                return None
+            
+            logger.info(f"[PayloadChamadoClassificado] Dados do colleague obtidos - ID: {colleague_id}, Nome: {colleague_name}")
+
+            logger.info(f"[PayloadChamadoClassificado] Buscando dados do funcionário no dataset ds_funcionarios...")
+            dados_funcionarios = fluig_core.Dataset_config(dataset_id="ds_funcionarios", user=Item.usuario)
+            
+            funcionario_data = None
+            if not hasattr(dados_funcionarios, 'status_code') and dados_funcionarios and dados_funcionarios.get('content'):
+                content_func = dados_funcionarios.get('content', [])
+                if isinstance(content_func, list):
+                    funcionario_data = content_func[0] if content_func else None
+                else:
+                    funcionario_data = content_func.get('values', [{}])[0] if isinstance(content_func.get('values'), list) and content_func.get('values') else None
+            
+            if not funcionario_data:
+                logger.warning(f"[PayloadChamadoClassificado] Funcionário '{Item.usuario}' não encontrado no dataset ds_funcionarios - usando valores padrão")
+                ds_cargo = ""
+                ds_secao = ""
+                num_cr_elab = ""
+                ds_empresa = ""
+            else:
+                ds_cargo = funcionario_data.get('Função', '')
+                ds_secao = funcionario_data.get('Seção', '')
+                num_cr_elab = funcionario_data.get('Centro de Custo', '')
+                ds_empresa = funcionario_data.get('Empresa', '')
+                logger.info(f"[PayloadChamadoClassificado] Dados do funcionário obtidos - Cargo: {ds_cargo}, Seção: {ds_secao}")
+
         logger.info(f"[PayloadChamadoClassificado] Buscando detalhes do serviço ID: {Item.servico}...")
         detalhes_servico = obter_detalhes_servico_fluig(
             document_id=Item.servico,
@@ -228,7 +316,7 @@ def PayloadChamadoClassificado(Item: AberturaChamadoClassificado, ambiente: str 
         else:
             logger.info(f"[PayloadChamadoClassificado] Telefone não fornecido ou vazio - usando valor padrão: {telefone_contato}")
         
-        # 6. Monta payload
+        # Monta payload
         form_fields = {
             "num_tel_contato": telefone_contato,
             "ds_titulo": Item.titulo,

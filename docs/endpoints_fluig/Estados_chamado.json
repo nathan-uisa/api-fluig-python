@@ -1,0 +1,116 @@
+{
+    "content": {
+        "processId": "Abertura de Chamados",
+        "processDescription": "Abertura de Chamado",
+        "processInstanceId": 657984,
+        "processInstruction": "",
+        "taskInstruction": "",
+        "availableUsers": {
+            "willShowUsers": false,
+            "hasFormAssigment": false,
+            "isCollectiveTask": false,
+            "users": [
+                {
+                    "colleagueId": "System:Auto",
+                    "colleagueName": "Tarefa Automática",
+                    "email": null,
+                    "login": null
+                }
+            ]
+        },
+        "availableStates": [
+            {
+                "sequence": 9,
+                "description": "Classificação",
+                "isReturn": false,
+                "processId": "Abertura de Chamados",
+                "subProcessSequence": 9
+            },
+            {
+                "sequence": 18,
+                "description": "Cancelado",
+                "isReturn": false,
+                "processId": "Abertura de Chamados",
+                "subProcessSequence": 18
+            },
+            {
+                "sequence": 55,
+                "description": "Reclassificar",
+                "isReturn": false,
+                "processId": "Abertura de Chamados",
+                "subProcessSequence": 55
+            },
+            {
+                "sequence": 5,
+                "description": "Transferir",
+                "isReturn": false,
+                "processId": "Abertura de Chamados",
+                "subProcessSequence": 5
+            }
+        ],
+        "sequence": 5,
+        "stateDescription": "Aguardando Classificação",
+        "formId": 41123,
+        "formDescription": "ITSM - Abertura de Chamados ",
+        "formVersion": 26000,
+        "version": 57,
+        "scriptVersion": 0,
+        "keyWord": "",
+        "formHtml": "https://fluig.uisa.com.br/webdesk/streamcontrol/41123/1142999/3000/?WDCompanyId=1&WDNrDocto=1142999&WDNrVersao=3000&WDParentDocumentId=41123&WKNumProces=657984&WKNumState=5&WKManagerMode=false&WKDef=Abertura+de+Chamados&WKVersDef=57&taskUserId=566a4fc82d694195ae11cf9e8e0d1a90",
+        "subProcessCreated": null,
+        "observation": null,
+        "processDiagram": "https://fluig.uisa.com.br/webdesk/svgviewer?companyId=1&processId=Abertura+de+Chamados&version=57&currentSequences=5",
+        "forecastedEffortType": 0,
+        "movementDate": "19/11/2025",
+        "initialState": false,
+        "userPermissions": null,
+        "counterSign": false,
+        "digitalSignature": false,
+        "sequenceDigitalSignature": false,
+        "currentMovto": null,
+        "allowComplements": true,
+        "complementsLevel": 1,
+        "avoidTransfer": false,
+        "automaticTask": false,
+        "jobTask": false,
+        "threadSequence": 0,
+        "expired": false,
+        "status": 0,
+        "selectedDestinyAfterAutomatic": 0,
+        "conditionAfterAutomatic": 0,
+        "uniqueCardVersion": false,
+        "adHocTask": false,
+        "docFileOrigName": null,
+        "nameFileToBeSigned": null,
+        "signPath": null,
+        "deadLineText": null,
+        "nrDoc": 1142999,
+        "versionDoc": 3000,
+        "processLinkMessage": null,
+        "currentStates": [
+            {
+                "stateSequence": 5,
+                "stateDescription": "Aguardando Classificação",
+                "joint": false,
+                "subProcess": false,
+                "subProcessId": null,
+                "subProcessDescription": null,
+                "canChangeDecision": false,
+                "statusConsult": 0,
+                "colleagueId": "566a4fc82d694195ae11cf9e8e0d1a90",
+                "colleagueName": "Infra Automação",
+                "colleagueLogin": "infra.automacao.uisa.com.br.1",
+                "deadlineText": "Sem prazo definido",
+                "canCurrentUserTakeTask": false,
+                "movementSequence": 3,
+                "movementTime": 1763597488000,
+                "consensoResume": null,
+                "threadSequence": 0,
+                "workflowConsensusVO": null,
+                "observation": null,
+                "canceled": false
+            }
+        ]
+    },
+    "message": null
+}

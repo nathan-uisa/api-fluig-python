@@ -1,42 +1,13 @@
 [
   {
     "domain": "fluig.uisa.com.br",
-    "expiry": 1770827496,
+    "expiry": 1771257790,
     "httpOnly": true,
     "name": "jwt.token",
     "path": "/",
     "sameSite": "Lax",
     "secure": true,
-    "value": "eyJraWQiOiIxMzA5OTY4Yy01NGI2LTRiMWEtOWNjYS01OWY5M2FjNjU0NWUiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJpdHNtLmZsdWlnLnVpc2EuY29tLmJyLjEiLCJyb2xlIjoidXNlciIsInRlbmFudCI6MSwidXNlclRlbmFudElkIjoxODE2LCJ1c2VyVHlwZSI6MCwidXNlclVVSUQiOiJkYWVkMzgzNC04NWQyLTRhZWQtODE5Mi1lMTViZGZhNWQwOGEiLCJ0ZW5hbnRVVUlEIjoiMTMwOTk2OGMtNTRiNi00YjFhLTljY2EtNTlmOTNhYzY1NDVlIiwibGFzdFVwZGF0ZURhdGUiOjE3NjM4MzIxNjEwNzIsInVzZXJUaW1lWm9uZSI6IkFtZXJpY2EvQ3VpYWJhIiwiZXhwIjoxNzY5MDI4Njg4LCJpYXQiOjE3NjkwMjc0ODgsImF1ZCI6ImZsdWlnX2F1dGhlbnRpY2F0b3JfcmVzb3VyY2UifQ.XJIBMlGomPHhXSA1__MtV8Q3ndb4Bo75CPMBWcogEdj67f48pVzOgcjUUoVFeyNszDCAK9vmGg5K8G6Q68e39Ai4ELWX81_QE-CgLjKN7Uu_UPyWkhKnd6DdX06yRM9RIid9C3WMNUrTI1UTNwZzUVdyqb274Cdj290GrGirWQPPhTgZ25k177DvyWjSQepF4o7vH7Niimi6IhcesqS84YVwDjoZRoI9EA__5toi4bI_SWjna4vsT144xqO796l9h3io4BZ8K98qwGhV4fgGS4U68-TrfWMG4NoYpfYmb6clB54uizMNCerPlI_5QpK6dYrM5mKzlvoCWLX3yc2RYw"
-  },
-  {
-    "domain": ".uisa.com.br",
-    "expiry": 1803587496,
-    "httpOnly": false,
-    "name": "_ga",
-    "path": "/",
-    "sameSite": "Lax",
-    "secure": false,
-    "value": "GA1.1.1590596377.1769027497"
-  },
-  {
-    "domain": "fluig.uisa.com.br",
-    "httpOnly": true,
-    "name": "JSESSIONID",
-    "path": "/",
-    "sameSite": "Lax",
-    "secure": true,
-    "value": "\"xFig0Eci4Syz_ih1GenIT_3mAw2Ueb0hN7Fbnn4Z.master:fluig1\""
-  },
-  {
-    "domain": ".uisa.com.br",
-    "expiry": 1803587496,
-    "httpOnly": false,
-    "name": "_ga_F0FT6D1NQG",
-    "path": "/",
-    "sameSite": "Lax",
-    "secure": false,
-    "value": "GS2.1.s1769027496$o1$g0$t1769027496$j60$l0$h0"
+    "value": "eyJraWQiOiIxMzA5OTY4Yy01NGI2LTRiMWEtOWNjYS01OWY5M2FjNjU0NWUiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJpdHNtLmZsdWlnLnVpc2EuY29tLmJyLjEiLCJyb2xlIjoidXNlciIsInRlbmFudCI6MSwidXNlclRlbmFudElkIjoxODE2LCJ1c2VyVHlwZSI6MCwidXNlclVVSUQiOiJkYWVkMzgzNC04NWQyLTRhZWQtODE5Mi1lMTViZGZhNWQwOGEiLCJ0ZW5hbnRVVUlEIjoiMTMwOTk2OGMtNTRiNi00YjFhLTljY2EtNTlmOTNhYzY1NDVlIiwibGFzdFVwZGF0ZURhdGUiOjE3NjM4MzIxNjEwNzIsInVzZXJUaW1lWm9uZSI6IkFtZXJpY2EvQ3VpYWJhIiwiZXhwIjoxNzY5NDU4OTg5LCJpYXQiOjE3Njk0NTc3ODksImF1ZCI6ImZsdWlnX2F1dGhlbnRpY2F0b3JfcmVzb3VyY2UifQ.U928-ymMf6Hq6p9r10jSaojZA2HMbXFzTPHFnTgOk81QtrfzejQWeUIu86wY9MxK8rfIx3JzK1aNk4eZjlWEDKXjsVPPwUPIr2VtWjvsfTPwzX8Okvp3pSibREmOnTAqJnlsVeqIZGWr-btltVw9NxFt1gZORtQ7dD9zBBRRkDZttFDITV3tpI23QY2HL_fOE91mmLguUly-iSrYjpTsVHdFrolb3ykE1iJqWZI-nHsGJxU-TakGtyaLbTkrIdR1E14TNxxB_Q8x6ysVGb6T3PQQFtwEP4LrizBL1SfNsjfC6Su8A5zLop5Zd3SScUotiEhUuCOulJbw-eYJCkvOaw"
   },
   {
     "domain": "fluig.uisa.com.br",
@@ -45,6 +16,45 @@
     "path": "/",
     "sameSite": "Lax",
     "secure": true,
-    "value": "gm53qmpusBt6D35lHJTICCqFOSkheWnvqRbn2-YE"
+    "value": "civJuGMJAYTV5HJR_ek5TOd-mlLLvdu261IXeDEQ"
+  },
+  {
+    "domain": ".uisa.com.br",
+    "expiry": 1804017789,
+    "httpOnly": false,
+    "name": "_ga",
+    "path": "/",
+    "sameSite": "Lax",
+    "secure": false,
+    "value": "GA1.1.1308844479.1769457790"
+  },
+  {
+    "domain": "fluig.uisa.com.br",
+    "httpOnly": true,
+    "name": "JSESSIONID",
+    "path": "/",
+    "sameSite": "Lax",
+    "secure": true,
+    "value": "\"KzUoriccz2ETFkeoCiQfkLnHEf8BrN91vG1S_Pg5.master:fluig1\""
+  },
+  {
+    "domain": ".uisa.com.br",
+    "expiry": 1804017789,
+    "httpOnly": false,
+    "name": "_ga_F0FT6D1NQG",
+    "path": "/",
+    "sameSite": "Lax",
+    "secure": false,
+    "value": "GS2.1.s1769457789$o1$g0$t1769457789$j60$l0$h0"
+  },
+  {
+    "domain": ".uisa.com.br",
+    "expiry": 1800993727,
+    "httpOnly": true,
+    "name": "cf_clearance",
+    "path": "/",
+    "sameSite": "None",
+    "secure": true,
+    "value": "Cc3uO4ITwbAE4oUIMQUqsRedCcvUEv5YXexoquuA600-1769457727-1.2.1.1-tI8_xQQNCiua5A54lyJOEjznf9UwDvW6Eh6sJhGw9igtA1nQj141Mn4q4ogCV083CSOfkDtXYZX389KtvgO51Hbuvwr0x3cmFbGu8CR_fqpqoncN6SBDkVxsj3EwSJE.hZKZDJewUQbtjMSAj8Sl3KhfGuAhm734keM2SacNBbAJfICERVUY3KiyZPxsz6eRV45H9T3d92tvVz8KUg6ZwYf2tLOOEnkG7Cp2AQZox.g"
   }
 ]

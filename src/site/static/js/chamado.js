@@ -5,6 +5,18 @@ let servicosDisponiveis = [];
 let dropdownAtivo = false;
 let itemSelecionado = -1;
 
+// Função auxiliar para escapar HTML e prevenir XSS
+function escapeHtml(text) {
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const planilhaInput = document.getElementById('planilha');
     const statusDiv = document.getElementById('planilha-status');
@@ -18,6 +30,30 @@ document.addEventListener('DOMContentLoaded', function() {
     const modalLoading = document.getElementById('modal-loading');
     const modalError = document.getElementById('modal-error');
     const modalPreviewContent = document.getElementById('modal-preview-content');
+    
+    // Elementos da sidebar de chamados (esquerda)
+    const sidebar = document.getElementById('chamados-sidebar');
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    const chamadosList = document.getElementById('chamados-list');
+    const chamadosLoading = document.getElementById('chamados-loading');
+    const chamadosError = document.getElementById('chamados-error');
+    const chamadosPagination = document.getElementById('chamados-pagination');
+    
+    // Elementos da sidebar de chamados do grupo (direita)
+    const chamadosGrupoList = document.getElementById('chamados-grupo-list');
+    const chamadosGrupoLoading = document.getElementById('chamados-grupo-loading');
+    const chamadosGrupoError = document.getElementById('chamados-grupo-error');
+    const chamadosGrupoPagination = document.getElementById('chamados-grupo-pagination');
+    
+    // Variáveis de paginação para MEUS CHAMADOS
+    let todosChamados = [];
+    let paginaAtual = 1;
+    const itensPorPagina = 10;
+    
+    // Variáveis de paginação para TODOS ANALISTAS
+    let todosChamadosGrupo = [];
+    let paginaAtualGrupo = 1;
+    const itensPorPaginaGrupo = 10;
 
     const servicoInput = document.getElementById('servico');
     const servicoIdInput = document.getElementById('servico_id');
@@ -514,6 +550,434 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // Função auxiliar para formatar data (apenas dia e mês)
+    function formatarDataDiaMes(dataStr) {
+        if (!dataStr) return 'N/A';
+        try {
+            // Formato ISO esperado: "2025-11-17T13:52:04.637-0400" ou "2025-11-17T13:52:04"
+            if (dataStr.includes('T')) {
+                const dataParte = dataStr.split('T')[0]; // "2025-11-17"
+                const partesData = dataParte.split('-');
+                if (partesData.length >= 3) {
+                    return `${partesData[2]}/${partesData[1]}`; // "17/11"
+                }
+            }
+            // Formato antigo: "17/11/2025 17:52" ou "17/11/2025"
+            const partes = dataStr.split(' ');
+            const dataParte = partes[0]; // "17/11/2025"
+            const partesData = dataParte.split('/');
+            if (partesData.length >= 2) {
+                return `${partesData[0]}/${partesData[1]}`; // "17/11"
+            }
+            return dataStr;
+        } catch (e) {
+            return dataStr;
+        }
+    }
+
+    // Função auxiliar para obter três primeiras palavras
+    function obterTresPrimeirasPalavras(texto) {
+        if (!texto) return 'N/A';
+        const palavras = texto.trim().split(/\s+/);
+        if (palavras.length >= 3) {
+            return `${palavras[0]} ${palavras[1]} ${palavras[2]}`;
+        } else if (palavras.length === 2) {
+            return `${palavras[0]} ${palavras[1]}`;
+        }
+        return palavras[0] || 'N/A';
+    }
+
+    // Função auxiliar para filtrar apenas letras (remove números e caracteres especiais)
+    function filtrarApenasLetras(texto) {
+        if (!texto) return 'N/A';
+        // Remove tudo que não for letra (incluindo acentos) ou espaço, mantém espaços múltiplos como um único espaço
+        const apenasLetras = texto.replace(/[^a-zA-ZÀ-ÿ\s]/g, '').replace(/\s+/g, ' ').trim();
+        return apenasLetras || 'N/A';
+    }
+
+    // Função para criar botão de chamado
+    function criarItemChamado(chamado) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'chamado-btn';
+        button.dataset.processInstanceId = chamado.processInstanceId;
+        
+        const processInstanceId = chamado.processInstanceId || 'N/A';
+        
+        // Extrai informações dos detalhes
+        const formFields = chamado.detalhes?.formFields || {};
+        const numSolicitacao = formFields.num_solicitacao || processInstanceId;
+        const processId = chamado.processId || '';
+        
+        // Define o campo de título baseado no tipo de chamado
+        let dsTitulo = 'Sem título';
+        if (processId === 'Abertura de Chamados') {
+            dsTitulo = formFields.ds_titulo || chamado.processDescription || 'Sem título';
+        } else if (processId === 'SAIS - Solicitação de Alteração em Item de Serviço') {
+            dsTitulo = formFields.ds_assunto || chamado.processDescription || 'Sem título';
+        } else {
+            dsTitulo = formFields.ds_titulo || chamado.processDescription || 'Sem título';
+        }
+        
+        const dtAbertura = formatarDataDiaMes(chamado.startDate || '');
+        const nmEmitente = filtrarApenasLetras(formFields.nm_emitente || 'N/A');
+        
+        // Define o campo para o tooltip baseado no tipo de processo
+        let tooltipTexto = 'Sem descrição';
+        if (processId === 'SAIS - Solicitação de Alteração em Item de Serviço') {
+            tooltipTexto = formFields.ds_objetivo || 'Sem descrição';
+        } else {
+            tooltipTexto = formFields.ds_chamado || 'Sem descrição';
+        }
+        
+        // Cria estrutura HTML com as informações
+        button.innerHTML = `
+            <div class="chamado-btn-content">
+                <div class="chamado-btn-header">
+                    <span class="chamado-num">#${numSolicitacao}</span>
+                    <span class="chamado-data">${dtAbertura}</span>
+                </div>
+                <div class="chamado-titulo">${dsTitulo}</div>
+                <div class="chamado-emitente">${nmEmitente}</div>
+            </div>
+        `;
+        
+        button.title = tooltipTexto;
+        
+        // Adiciona evento de clique para abrir detalhes
+        button.addEventListener('click', function() {
+            // Remove active de todos os botões
+            document.querySelectorAll('.chamado-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Adiciona active ao botão clicado
+            button.classList.add('active');
+            
+            // Abre o chamado no Fluig (nova aba)
+            const fluigUrl = `https://fluig.uisa.com.br/portal/p/1/pageworkflowview?app_ecm_workflowview_detailsProcessInstanceID=${processInstanceId}`;
+            window.open(fluigUrl, '_blank');
+        });
+        
+        return button;
+    }
+
+    // Função para carregar e exibir chamados na sidebar
+    async function carregarChamadosFila() {
+        if (!chamadosList || !chamadosLoading) {
+            console.warn('[carregarChamadosFila] Elementos da sidebar não encontrados');
+            return;
+        }
+        
+        try {
+            chamadosLoading.style.display = 'flex';
+            if (chamadosError) chamadosError.style.display = 'none';
+            chamadosList.innerHTML = '';
+            if (chamadosPagination) chamadosPagination.style.display = 'none';
+            
+            console.log('[carregarChamadosFila] Fazendo requisição para /api/chamados/fila...');
+            const response = await fetch('/api/chamados/fila');
+            
+            console.log('[carregarChamadosFila] Status da resposta:', response.status);
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('[carregarChamadosFila] Erro HTTP:', response.status, errorText);
+                chamadosLoading.style.display = 'none';
+                if (chamadosError) {
+                    chamadosError.textContent = `Erro ao carregar chamados (${response.status}). Tente recarregar a página.`;
+                    chamadosError.style.display = 'block';
+                }
+                return;
+            }
+            
+            const data = await response.json();
+            console.log('[carregarChamadosFila] Dados recebidos:', data);
+            
+            chamadosLoading.style.display = 'none';
+            
+            if (!data.sucesso) {
+                console.warn('[carregarChamadosFila] Requisição não foi bem-sucedida:', data.erro);
+                if (chamadosError) {
+                    chamadosError.textContent = data.erro || 'Erro ao carregar chamados';
+                    chamadosError.style.display = 'block';
+                }
+                return;
+            }
+            
+            todosChamados = data.chamados || [];
+            paginaAtual = 1;
+            console.log('[carregarChamadosFila] Total de chamados:', todosChamados.length);
+            
+            // Renderiza a primeira página
+            renderizarChamadosFila();
+            
+            console.log('[carregarChamadosFila] Chamados renderizados com sucesso');
+            
+        } catch (error) {
+            console.error('[carregarChamadosFila] Erro ao carregar chamados:', error);
+            chamadosLoading.style.display = 'none';
+            if (chamadosError) {
+                chamadosError.textContent = `Erro ao carregar chamados: ${error.message}. Tente recarregar a página.`;
+                chamadosError.style.display = 'block';
+            }
+        }
+    }
+
+    // Toggle da sidebar
+    if (sidebarToggle && sidebar) {
+        sidebarToggle.addEventListener('click', function() {
+            sidebar.classList.toggle('collapsed');
+        });
+    }
+
+    // Função genérica para renderizar paginação
+    function renderizarPaginacao(container, totalItens, paginaAtualParam, itensPorPagina, callback) {
+        if (!container) return;
+        
+        const totalPaginas = Math.ceil(totalItens / itensPorPagina);
+        
+        // Mostra paginação apenas se houver 11 ou mais chamados
+        if (totalItens < 11) {
+            container.style.display = 'none';
+            return;
+        }
+        
+        container.style.display = 'flex';
+        container.innerHTML = '';
+        
+        // Cria container de paginação
+        const paginationWrapper = document.createElement('div');
+        paginationWrapper.className = 'pagination-wrapper';
+        
+        // Botões de página
+        for (let i = 1; i <= totalPaginas; i++) {
+            const pageBtn = document.createElement('button');
+            pageBtn.type = 'button';
+            pageBtn.className = 'pagination-btn';
+            if (i === paginaAtualParam) {
+                pageBtn.classList.add('active');
+            }
+            pageBtn.textContent = i;
+            pageBtn.addEventListener('click', () => {
+                callback(i);
+            });
+            paginationWrapper.appendChild(pageBtn);
+        }
+        
+        container.appendChild(paginationWrapper);
+    }
+    
+    // Função para renderizar paginação do grupo
+    function renderizarPaginacaoGrupo(totalItens, paginaAtual, itensPorPagina) {
+        renderizarPaginacao(
+            chamadosGrupoPagination,
+            totalItens,
+            paginaAtual,
+            itensPorPagina,
+            (novaPagina) => {
+                paginaAtualGrupo = novaPagina;
+                renderizarChamadosGrupo();
+            }
+        );
+    }
+    
+    // Função para renderizar paginação de MEUS CHAMADOS
+    function renderizarPaginacaoFila(totalItens, paginaAtualParam, itensPorPagina) {
+        renderizarPaginacao(
+            chamadosPagination,
+            totalItens,
+            paginaAtualParam,
+            itensPorPagina,
+            (novaPagina) => {
+                paginaAtual = novaPagina;
+                renderizarChamadosFila();
+            }
+        );
+    }
+    
+    // Função para renderizar chamados da página atual do grupo
+    function renderizarChamadosGrupo() {
+        if (!chamadosGrupoList) return;
+        
+        chamadosGrupoList.innerHTML = '';
+        
+        const inicio = (paginaAtualGrupo - 1) * itensPorPaginaGrupo;
+        const fim = inicio + itensPorPaginaGrupo;
+        const chamadosPagina = todosChamadosGrupo.slice(inicio, fim);
+        
+        if (chamadosPagina.length === 0) {
+            chamadosGrupoList.innerHTML = '<div class="chamado-empty">Nenhum chamado encontrado</div>';
+        } else {
+            // Renderiza cada chamado como botão
+            chamadosPagina.forEach(chamado => {
+                const chamadoBtn = criarItemChamado(chamado);
+                chamadosGrupoList.appendChild(chamadoBtn);
+            });
+            
+            // Preenche com espaçadores invisíveis se houver menos de 10 itens para manter altura fixa
+            const itensFaltantes = itensPorPaginaGrupo - chamadosPagina.length;
+            if (itensFaltantes > 0) {
+                // Cria um espaçador que replica a estrutura de um botão de chamado
+                for (let i = 0; i < itensFaltantes; i++) {
+                    const spacer = document.createElement('button');
+                    spacer.type = 'button';
+                    spacer.className = 'chamado-btn chamado-spacer';
+                    spacer.disabled = true;
+                    spacer.style.visibility = 'hidden';
+                    spacer.style.pointerEvents = 'none';
+                    spacer.innerHTML = `
+                        <div class="chamado-btn-content">
+                            <div class="chamado-btn-header">
+                                <span class="chamado-num">#000000</span>
+                                <span class="chamado-data">00/00</span>
+                            </div>
+                            <div class="chamado-titulo">Espaçador</div>
+                            <div class="chamado-emitente">Espaçador</div>
+                        </div>
+                    `;
+                    chamadosGrupoList.appendChild(spacer);
+                }
+            }
+        }
+        
+        // Renderiza paginação (apenas se houver 11+ chamados)
+        renderizarPaginacaoGrupo(todosChamadosGrupo.length, paginaAtualGrupo, itensPorPaginaGrupo);
+    }
+    
+    // Função para renderizar chamados da página atual de MEUS CHAMADOS
+    function renderizarChamadosFila() {
+        if (!chamadosList) return;
+        
+        chamadosList.innerHTML = '';
+        
+        const inicio = (paginaAtual - 1) * itensPorPagina;
+        const fim = inicio + itensPorPagina;
+        const chamadosPagina = todosChamados.slice(inicio, fim);
+        
+        if (chamadosPagina.length === 0) {
+            chamadosList.innerHTML = '<div class="chamado-empty">Nenhum chamado encontrado na sua fila</div>';
+        } else {
+            // Renderiza cada chamado como botão
+            chamadosPagina.forEach(chamado => {
+                const chamadoBtn = criarItemChamado(chamado);
+                chamadosList.appendChild(chamadoBtn);
+            });
+            
+            // Preenche com espaçadores invisíveis se houver menos de 10 itens para manter altura fixa
+            const itensFaltantes = itensPorPagina - chamadosPagina.length;
+            if (itensFaltantes > 0) {
+                // Cria um espaçador que replica a estrutura de um botão de chamado
+                for (let i = 0; i < itensFaltantes; i++) {
+                    const spacer = document.createElement('button');
+                    spacer.type = 'button';
+                    spacer.className = 'chamado-btn chamado-spacer';
+                    spacer.disabled = true;
+                    spacer.style.visibility = 'hidden';
+                    spacer.style.pointerEvents = 'none';
+                    spacer.innerHTML = `
+                        <div class="chamado-btn-content">
+                            <div class="chamado-btn-header">
+                                <span class="chamado-num">#000000</span>
+                                <span class="chamado-data">00/00</span>
+                            </div>
+                            <div class="chamado-titulo">Espaçador</div>
+                            <div class="chamado-emitente">Espaçador</div>
+                        </div>
+                    `;
+                    chamadosList.appendChild(spacer);
+                }
+            }
+        }
+        
+        // Renderiza paginação (apenas se houver 11+ chamados)
+        renderizarPaginacaoFila(todosChamados.length, paginaAtual, itensPorPagina);
+    }
+    
+    // Função para carregar chamados do grupo ITSM_TODOS
+    async function carregarChamadosGrupo() {
+        if (!chamadosGrupoList || !chamadosGrupoLoading) {
+            console.warn('[carregarChamadosGrupo] Elementos da sidebar direita não encontrados');
+            return;
+        }
+        
+        try {
+            chamadosGrupoLoading.style.display = 'flex';
+            if (chamadosGrupoError) chamadosGrupoError.style.display = 'none';
+            chamadosGrupoList.innerHTML = '';
+            if (chamadosGrupoPagination) chamadosGrupoPagination.style.display = 'none';
+            
+            console.log('[carregarChamadosGrupo] Fazendo requisição para /api/chamados/grupo-itsm-todos...');
+            const response = await fetch('/api/chamados/grupo-itsm-todos');
+            
+            console.log('[carregarChamadosGrupo] Status da resposta:', response.status);
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('[carregarChamadosGrupo] Erro HTTP:', response.status, errorText);
+                chamadosGrupoLoading.style.display = 'none';
+                if (chamadosGrupoError) {
+                    chamadosGrupoError.textContent = `Erro ao carregar chamados (${response.status}). Tente recarregar a página.`;
+                    chamadosGrupoError.style.display = 'block';
+                }
+                return;
+            }
+            
+            const data = await response.json();
+            console.log('[carregarChamadosGrupo] Dados recebidos:', data);
+            
+            chamadosGrupoLoading.style.display = 'none';
+            
+            if (!data.sucesso) {
+                console.warn('[carregarChamadosGrupo] Requisição não foi bem-sucedida:', data.erro);
+                if (chamadosGrupoError) {
+                    chamadosGrupoError.textContent = data.erro || 'Erro ao carregar chamados';
+                    chamadosGrupoError.style.display = 'block';
+                }
+                return;
+            }
+            
+            todosChamadosGrupo = data.chamados || [];
+            paginaAtualGrupo = 1;
+            console.log('[carregarChamadosGrupo] Total de chamados:', todosChamadosGrupo.length);
+            
+            // Renderiza a primeira página
+            renderizarChamadosGrupo();
+            
+            console.log('[carregarChamadosGrupo] Chamados renderizados com sucesso');
+            
+        } catch (error) {
+            console.error('[carregarChamadosGrupo] Erro ao carregar chamados:', error);
+            chamadosGrupoLoading.style.display = 'none';
+            if (chamadosGrupoError) {
+                chamadosGrupoError.textContent = `Erro ao carregar chamados: ${error.message}. Tente recarregar a página.`;
+                chamadosGrupoError.style.display = 'block';
+            }
+        }
+    }
+
+    // Carrega chamados ao carregar a página
+    if (chamadosList && chamadosLoading) {
+        console.log('[chamado.js] Elementos da sidebar encontrados, iniciando carregamento de chamados...');
+        carregarChamadosFila();
+    } else {
+        console.warn('[chamado.js] Elementos da sidebar não encontrados:', {
+            chamadosList: !!chamadosList,
+            chamadosLoading: !!chamadosLoading
+        });
+    }
+    
+    // Carrega chamados do grupo ao carregar a página
+    if (chamadosGrupoList && chamadosGrupoLoading) {
+        console.log('[chamado.js] Elementos da sidebar direita encontrados, iniciando carregamento de chamados do grupo...');
+        carregarChamadosGrupo();
+    } else {
+        console.warn('[chamado.js] Elementos da sidebar direita não encontrados:', {
+            chamadosGrupoList: !!chamadosGrupoList,
+            chamadosGrupoLoading: !!chamadosGrupoLoading
+        });
+    }
 });
 
 // Função para adicionar chamado ao modal
@@ -777,18 +1241,3 @@ function preencherCamposServico(servicoData) {
     
     console.log('Campos preenchidos automaticamente com sucesso');
 }
-
-
-
-// Função auxiliar para escapar HTML e prevenir XSS
-function escapeHtml(text) {
-    const map = {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#039;'
-    };
-    return text.replace(/[&<>"']/g, function(m) { return map[m]; });
-}
-

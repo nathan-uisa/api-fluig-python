@@ -105,39 +105,65 @@ def buscar_funcionario(email_ou_chapa: str, ambiente: str = "PRD", obrigatorio: 
         return None
 
 
-def buscar_funcionario_por_email(email: str, ambiente: str = "PRD") -> DadosFuncionario:
+
+
+def buscar_colleague_id(email: str, ambiente: str = "PRD") -> Optional[str]:
     """
-    Busca dados do funcionário usando o dataset ds_funcionarios do Fluig por email
+    Busca o colleagueId pelo email usando o dataset colleague
     
     Args:
         email: Email do funcionário
         ambiente: Ambiente do Fluig (PRD ou QLD), padrão PRD
     
     Returns:
-        DadosFuncionario com os dados do funcionário
-    
-    Raises:
-        ValueError: Se não encontrar o funcionário ou houver erro na busca
+        colleagueId ou None se não encontrar
     """
-    return buscar_funcionario(email, ambiente, obrigatorio=True)
-
-
-def buscar_funcionario_por_chapa_ou_email(chapa_ou_email: str, ambiente: str = "PRD") -> Optional[DadosFuncionario]:
-    """
-    Busca dados do funcionário usando o dataset ds_funcionarios do Fluig
-    Aceita email ou chapa como parâmetro de busca
+    if not email or not email.strip():
+        return None
     
-    Args:
-        chapa_ou_email: Chapa ou email do funcionário
-        ambiente: Ambiente do Fluig (PRD ou QLD), padrão PRD
+    email = email.strip()
     
-    Returns:
-        DadosFuncionario com os dados do funcionário ou None se não encontrar
-    
-    Raises:
-        ValueError: Se houver erro na busca (não se não encontrar)
-    """
-    return buscar_funcionario(chapa_ou_email, ambiente, obrigatorio=False)
+    try:
+        logger.info(f"[buscar_colleague_id] Buscando colleagueId - Email: {email}, Ambiente: {ambiente}")
+        
+        fluig_core = FluigCore(ambiente=ambiente)
+        resultado = fluig_core.Dataset_config(dataset_id="colleague", user=email)
+        
+        # Verificar se a resposta é um objeto Response (erro HTTP)
+        if hasattr(resultado, 'status_code'):
+            logger.warning(f"[buscar_colleague_id] Erro HTTP {resultado.status_code} ao buscar colleague")
+            return None
+        
+        # Verificar se a resposta é um dicionário com content
+        if not resultado or not isinstance(resultado, dict):
+            logger.warning(f"[buscar_colleague_id] Resposta inválida do dataset: {type(resultado)}")
+            return None
+        
+        content = resultado.get('content', [])
+        if isinstance(content, list) and len(content) > 0:
+            colleague_data = content[0]
+        elif isinstance(content, dict) and 'values' in content:
+            values = content.get('values', [])
+            if values and len(values) > 0:
+                colleague_data = values[0]
+            else:
+                logger.warning(f"[buscar_colleague_id] Nenhum colleague encontrado para: {email}")
+                return None
+        else:
+            logger.warning(f"[buscar_colleague_id] Nenhum colleague encontrado para: {email}")
+            return None
+        
+        colleague_id = colleague_data.get('colleagueId', '')
+        if colleague_id:
+            logger.info(f"[buscar_colleague_id] colleagueId encontrado: {colleague_id}")
+            return colleague_id
+        else:
+            logger.warning(f"[buscar_colleague_id] colleagueId não encontrado no resultado")
+            return None
+            
+    except Exception as e:
+        logger.warning(f"[buscar_colleague_id] Erro ao buscar colleagueId: {str(e)}")
+        return None
 
 
 def buscar_colleague_name(chapa_ou_email: str, ambiente: str = "PRD") -> Optional[str]:
@@ -208,7 +234,7 @@ async def chamado(request: Request):
     
     try:
         # Buscar funcionário usando dataset interno do Fluig
-        funcionario = buscar_funcionario_por_email(email, ambiente="PRD")
+        funcionario = buscar_funcionario(email, ambiente="PRD", obrigatorio=True)
         
         # Criar dados formatados para o formulário
         dados_funcionario = DadosFuncionarioForm(
@@ -296,7 +322,7 @@ async def criar_chamado(
     
     try:
         # Buscar dados do funcionário novamente usando dataset interno do Fluig
-        funcionario = buscar_funcionario_por_email(email, ambiente="PRD")
+        funcionario = buscar_funcionario(email, ambiente="PRD", obrigatorio=True)
         
         # Validar telefone obrigatório
         # Priorizar telefone preenchido no campo "Telefone de Contato" do formulário
@@ -1129,6 +1155,283 @@ async def buscar_detalhes_servico(request: Request, busca: BuscarDetalhesServico
             content={
                 "sucesso": False,
                 "erro": f"Erro inesperado ao buscar detalhes do serviço: {str(e)}"
+            }
+        )
+
+
+@router.get("/api/chamados/fila")
+async def obter_chamados_fila(request: Request):
+    """
+    Retorna a lista de chamados da fila do usuário logado
+    Segue o fluxo: email -> colleagueId -> listar chamados -> detalhes de cada chamado
+    """
+    user = request.session.get('user')
+    if not user:
+        return JSONResponse(
+            status_code=401,
+            content={"sucesso": False, "erro": "Usuário não autenticado"}
+        )
+    
+    email = user.get('email')
+    if not email:
+        return JSONResponse(
+            status_code=400,
+            content={"sucesso": False, "erro": "Email do usuário não encontrado"}
+        )
+    
+    try:
+        ambiente = "PRD"
+        
+        # 1. Buscar colleagueId pelo email
+        logger.info(f"[obter_chamados_fila] Buscando colleagueId para email: {email}")
+        colleague_id = buscar_colleague_id(email, ambiente)
+        
+        if not colleague_id:
+            logger.warning(f"[obter_chamados_fila] colleagueId não encontrado para: {email}")
+            return JSONResponse(
+                status_code=200,
+                content={"sucesso": True, "chamados": [], "erro": "ColleagueId não encontrado para o usuário"}
+            )
+        
+        logger.info(f"[obter_chamados_fila] colleagueId encontrado: {colleague_id}")
+        
+        # 2. Listar chamados usando o colleagueId
+        logger.info(f"[obter_chamados_fila] Listando chamados para colleagueId: {colleague_id}")
+        fluig_core = FluigCore(ambiente=ambiente)
+        chamados_lista = fluig_core.listar_chamados_tasks(
+            assignee=colleague_id,
+            usuario=ConfigEnvSetings.FLUIG_ADMIN_USER
+        )
+        
+        if not chamados_lista:
+            logger.info(f"[obter_chamados_fila] listar_chamados_tasks retornou None ou vazio")
+            return JSONResponse(
+                status_code=200,
+                content={"sucesso": True, "chamados": []}
+            )
+        
+        items = chamados_lista.get('items', [])
+        if not items:
+            return JSONResponse(
+                status_code=200,
+                content={"sucesso": True, "chamados": []}
+            )
+        
+        logger.info(f"[obter_chamados_fila] {len(items)} chamado(s) encontrado(s)")
+        
+        # 3. Buscar detalhes de cada chamado
+        chamados_detalhados = []
+        for item in items:
+            process_instance_id = item.get('processInstanceId')
+            if not process_instance_id:
+                continue
+            
+            try:
+                logger.debug(f"[obter_chamados_fila] Buscando detalhes do chamado {process_instance_id}")
+                detalhes = fluig_core.obter_detalhes_chamado(
+                    process_instance_id=process_instance_id,
+                    usuario=ConfigEnvSetings.FLUIG_ADMIN_USER
+                )
+                
+                if detalhes:
+                    # Combina dados básicos com detalhes
+                    chamado_completo = {
+                        "processInstanceId": process_instance_id,
+                        "processId": item.get('processId', ''),
+                        "processDescription": item.get('processDescription', ''),
+                        "status": item.get('status', ''),
+                        "slaStatus": item.get('slaStatus', ''),
+                        "startDate": item.get('startDate', ''),
+                        "assignStartDate": item.get('assignStartDate', ''),
+                        "requester": item.get('requester', {}),
+                        "assignee": item.get('assignee', {}),
+                        "state": item.get('state', {}),
+                        "detalhes": detalhes
+                    }
+                    chamados_detalhados.append(chamado_completo)
+                else:
+                    # Se não conseguir detalhes, retorna pelo menos os dados básicos
+                    chamado_basico = {
+                        "processInstanceId": process_instance_id,
+                        "processId": item.get('processId', ''),
+                        "processDescription": item.get('processDescription', ''),
+                        "status": item.get('status', ''),
+                        "slaStatus": item.get('slaStatus', ''),
+                        "startDate": item.get('startDate', ''),
+                        "assignStartDate": item.get('assignStartDate', ''),
+                        "requester": item.get('requester', {}),
+                        "assignee": item.get('assignee', {}),
+                        "state": item.get('state', {}),
+                        "detalhes": None
+                    }
+                    chamados_detalhados.append(chamado_basico)
+                    
+            except Exception as e:
+                logger.error(f"[obter_chamados_fila] Erro ao buscar detalhes do chamado {process_instance_id}: {str(e)}")
+                # Continua com os dados básicos mesmo se falhar ao buscar detalhes
+                chamado_basico = {
+                    "processInstanceId": process_instance_id,
+                    "processId": item.get('processId', ''),
+                    "processDescription": item.get('processDescription', ''),
+                    "status": item.get('status', ''),
+                    "slaStatus": item.get('slaStatus', ''),
+                    "startDate": item.get('startDate', ''),
+                    "requester": item.get('requester', {}),
+                    "assignee": item.get('assignee', {}),
+                    "state": item.get('state', {}),
+                    "detalhes": None
+                }
+                chamados_detalhados.append(chamado_basico)
+        
+        logger.info(f"[obter_chamados_fila] {len(chamados_detalhados)} chamado(s) processado(s) com sucesso")
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "sucesso": True,
+                "chamados": chamados_detalhados,
+                "total": len(chamados_detalhados)
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"[obter_chamados_fila] Erro ao obter chamados: {str(e)}")
+        import traceback
+        logger.debug(f"Traceback: {traceback.format_exc()}")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "sucesso": False,
+                "erro": f"Erro ao obter chamados: {str(e)}"
+            }
+        )
+
+
+@router.get("/api/chamados/grupo-itsm-todos")
+async def obter_chamados_grupo_itsm_todos(request: Request):
+    """
+    Retorna a lista de chamados do grupo Pool:Group:ITSM_TODOS
+    Com filtros: status=NOT_COMPLETED e slaStatus=ON_TIME
+    """
+    user = request.session.get('user')
+    if not user:
+        return JSONResponse(
+            status_code=401,
+            content={"sucesso": False, "erro": "Usuário não autenticado"}
+        )
+    
+    try:
+        ambiente = "PRD"
+        assignee_grupo = "Pool:Group:ITSM_TODOS"
+        
+        # Listar chamados do grupo ITSM_TODOS
+        logger.info(f"[obter_chamados_grupo_itsm_todos] Listando chamados do grupo: {assignee_grupo}")
+        fluig_core = FluigCore(ambiente=ambiente)
+        chamados_lista = fluig_core.listar_chamados_tasks(
+            assignee=assignee_grupo,
+            status="NOT_COMPLETED",
+            sla_status="ON_TIME",
+            usuario=ConfigEnvSetings.FLUIG_ADMIN_USER
+        )
+        
+        if not chamados_lista:
+            logger.info(f"[obter_chamados_grupo_itsm_todos] listar_chamados_tasks retornou None ou vazio")
+            return JSONResponse(
+                status_code=200,
+                content={"sucesso": True, "chamados": []}
+            )
+        
+        items = chamados_lista.get('items', [])
+        if not items:
+            return JSONResponse(
+                status_code=200,
+                content={"sucesso": True, "chamados": []}
+            )
+        
+        logger.info(f"[obter_chamados_grupo_itsm_todos] {len(items)} chamado(s) encontrado(s)")
+        
+        # Buscar detalhes de cada chamado
+        chamados_detalhados = []
+        for item in items:
+            process_instance_id = item.get('processInstanceId')
+            if not process_instance_id:
+                continue
+            
+            try:
+                logger.debug(f"[obter_chamados_grupo_itsm_todos] Buscando detalhes do chamado {process_instance_id}")
+                detalhes = fluig_core.obter_detalhes_chamado(
+                    process_instance_id=process_instance_id,
+                    usuario=ConfigEnvSetings.FLUIG_ADMIN_USER
+                )
+                
+                if detalhes:
+                    # Combina dados básicos com detalhes
+                    chamado_completo = {
+                        "processInstanceId": process_instance_id,
+                        "processId": item.get('processId', ''),
+                        "processDescription": item.get('processDescription', ''),
+                        "status": item.get('status', ''),
+                        "slaStatus": item.get('slaStatus', ''),
+                        "startDate": item.get('startDate', ''),
+                        "assignStartDate": item.get('assignStartDate', ''),
+                        "requester": item.get('requester', {}),
+                        "assignee": item.get('assignee', {}),
+                        "state": item.get('state', {}),
+                        "detalhes": detalhes
+                    }
+                    chamados_detalhados.append(chamado_completo)
+                else:
+                    # Se não conseguir detalhes, retorna pelo menos os dados básicos
+                    chamado_basico = {
+                        "processInstanceId": process_instance_id,
+                        "processId": item.get('processId', ''),
+                        "processDescription": item.get('processDescription', ''),
+                        "status": item.get('status', ''),
+                        "slaStatus": item.get('slaStatus', ''),
+                        "startDate": item.get('startDate', ''),
+                        "requester": item.get('requester', {}),
+                        "assignee": item.get('assignee', {}),
+                        "state": item.get('state', {}),
+                        "detalhes": None
+                    }
+                    chamados_detalhados.append(chamado_basico)
+            except Exception as e:
+                logger.error(f"[obter_chamados_grupo_itsm_todos] Erro ao buscar detalhes do chamado {process_instance_id}: {str(e)}")
+                # Continua com os dados básicos mesmo se falhar ao buscar detalhes
+                chamado_basico = {
+                    "processInstanceId": process_instance_id,
+                    "processId": item.get('processId', ''),
+                    "processDescription": item.get('processDescription', ''),
+                    "status": item.get('status', ''),
+                    "slaStatus": item.get('slaStatus', ''),
+                    "startDate": item.get('startDate', ''),
+                    "requester": item.get('requester', {}),
+                    "assignee": item.get('assignee', {}),
+                    "state": item.get('state', {}),
+                    "detalhes": None
+                }
+                chamados_detalhados.append(chamado_basico)
+        
+        logger.info(f"[obter_chamados_grupo_itsm_todos] {len(chamados_detalhados)} chamado(s) processado(s) com sucesso")
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "sucesso": True,
+                "chamados": chamados_detalhados,
+                "total": len(chamados_detalhados)
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"[obter_chamados_grupo_itsm_todos] Erro ao obter chamados: {str(e)}")
+        import traceback
+        logger.debug(f"Traceback: {traceback.format_exc()}")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "sucesso": False,
+                "erro": f"Erro ao obter chamados: {str(e)}"
             }
         )
 

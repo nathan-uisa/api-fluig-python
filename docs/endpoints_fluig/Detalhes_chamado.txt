@@ -1,0 +1,312 @@
+https://fluig.uisa.com.br/process-management/api/v2/requests/{NUM_CHAMADO}?expand=formFields
+
+
+
+
+
+resposta:
+
+  "processInstanceId": 656304,
+  "processId": "Abertura de Chamados",
+  "processVersion": 57,
+  "active": true,
+  "requester": null,
+  "formRecordId": 1139863,
+  "formId": 41123,
+  "parentRequestId": null,
+  "startDate": "2025-11-17T13:52:04.637-0400",
+  "endDate": null,
+  "warningDate": null,
+  "deadlineDate": null,
+  "periodId": "Default",
+  "activities": null,
+  "formRecord": null,
+  "formFields": [
+    {
+      "field": "dt_abertura",
+      "value": "17/11/2025 17:52"
+    },
+    {
+      "field": "fila_resp",
+      "value": ""
+    },
+    {
+      "field": "num_solicitacao",
+      "value": "656304"
+    },
+    {
+      "field": "urg_baixa",
+      "value": "NA"
+    },
+    {
+      "field": "ds_chamado",
+      "value": "Solicito a instalação do programa WhatsApp no computador 005588."
+    },
+    {
+      "field": "acesso",
+      "value": "0"
+    },
+    {
+      "field": "fila_resp_1",
+      "value": ""
+    },
+    {
+      "field": "Compliance",
+      "value": ""
+    },
+    {
+      "field": "fila_resp_2",
+      "value": ""
+    },
+    {
+      "field": "keyuser_hana",
+      "value": ""
+    },
+    {
+      "field": "ds_keyuser",
+      "value": ""
+    },
+    {
+      "field": "ds_secao",
+      "value": "Cyber Security"
+    },
+    {
+      "field": "ds_resp_servico",
+      "value": "Rodrigo da Silva Dias"
+    },
+    {
+      "field": "status_consultoria",
+      "value": ""
+    },
+    {
+      "field": "companyid",
+      "value": "1"
+    },
+    {
+      "field": "email_solicitante",
+      "value": ""
+    },
+    {
+      "field": "iccid",
+      "value": ""
+    },
+    {
+      "field": "ds_cargo",
+      "value": "Analista de Segurança da Informação JR"
+    },
+    {
+      "field": "urg_alta",
+      "value": "HORÁRIO ADMINISTRATIVO"
+    },
+    {
+      "field": "tableid",
+      "value": "principal"
+    },
+    {
+      "field": "consultor_mat",
+      "value": ""
+    },
+    {
+      "field": "sl_acao_PIMS",
+      "value": ""
+    },
+    {
+      "field": "documentid",
+      "value": "1139863"
+    },
+    {
+      "field": "num_cr_elab",
+      "value": "110051406"
+    },
+    {
+      "field": "status_keyuser",
+      "value": ""
+    },
+    {
+      "field": "nm_emitente",
+      "value": "Dilamar Junior Busnello"
+    },
+    {
+      "field": "ds_item_servico",
+      "value": "SERVIÇOS DE SUPORTE TÉCNICO"
+    },
+    {
+      "field": "patrimonio",
+      "value": ""
+    },
+    {
+      "field": "comentario_avaliacao",
+      "value": ""
+    },
+    {
+      "field": "ds_titulo",
+      "value": "Instalação do WhatsApp no computador 005588"
+    },
+    {
+      "field": "version",
+      "value": "4000"
+    },
+    {
+      "field": "imeiTablet",
+      "value": ""
+    },
+    {
+      "field": "aprova_keyuser",
+      "value": ""
+    },
+    {
+      "field": "WKUserDiretor",
+      "value": ""
+    },
+    {
+      "field": "KeyUser",
+      "value": "0b9dfec5ce1911eba51f0a586460bdce"
+    },
+    {
+      "field": "status_chamado",
+      "value": "Em Atendimento"
+    },
+    {
+      "field": "urg_media",
+      "value": "HORÁRIO ADMINISTRATIVO "
+    },
+    {
+      "field": "status",
+      "value": ""
+    },
+    {
+      "field": "keyuser_mat",
+      "value": ""
+    },
+    {
+      "field": "vl_esforco_horas",
+      "value": ""
+    },
+    {
+      "field": "text_sod",
+      "value": ""
+    },
+    {
+      "field": "sl_aproCompl",
+      "value": ""
+    },
+    {
+      "field": "WKUserGestor",
+      "value": ""
+    },
+    {
+      "field": "ds_servico",
+      "value": "Acompanhamento Técnico"
+    },
+    {
+      "field": "equipe_resp",
+      "value": "ITSM_SUPORTE_TÉCNICO"
+    },
+    {
+      "field": "num_tel_contato",
+      "value": "5565999812416"
+    },
+    {
+      "field": "ds_urgencia",
+      "value": "Média"
+    },
+    {
+      "field": "ds_consultor",
+      "value": ""
+    },
+    {
+      "field": "sl_acao",
+      "value": ""
+    },
+    {
+      "field": "cardid",
+      "value": "41123"
+    },
+    {
+      "field": "num_atividade",
+      "value": "5"
+    },
+    {
+      "field": "criticidade_hana",
+      "value": ""
+    },
+    {
+      "field": "imeiCelular",
+      "value": ""
+    },
+    {
+      "field": "ds_equipe_resp",
+      "value": "ITSM - ATENDIMENTO SUPORTE TÉCNICO"
+    },
+    {
+      "field": "aprova_compl",
+      "value": ""
+    },
+    {
+      "field": "tipo_ativo",
+      "value": ""
+    },
+    {
+      "field": "ch_sap",
+      "value": "0"
+    },
+    {
+      "field": "NomeRegistrador",
+      "value": "dilamar.busnello@uisa.com.br"
+    },
+    {
+      "field": "ds_solucao",
+      "value": ""
+    },
+    {
+      "field": "h_solicitante",
+      "value": "d601374ad69011eabf770a5864614158"
+    },
+    {
+      "field": "ds_grupo_servico",
+      "value": "SERVIÇOS DE SUPORTE TÉCNICO"
+    },
+    {
+      "field": "ds_empresa",
+      "value": "USINAS ITAMARATI"
+    },
+    {
+      "field": "anonymization_date",
+      "value": ""
+    },
+    {
+      "field": "avaliacao_chamado",
+      "value": ""
+    },
+    {
+      "field": "ds_email_sol",
+      "value": "dilamar.busnello@uisa.com.br"
+    },
+    {
+      "field": "anonymization_user_id",
+      "value": ""
+    },
+    {
+      "field": "equipamento",
+      "value": ""
+    },
+    {
+      "field": "ds_tipo",
+      "value": "Tarefa"
+    },
+    {
+      "field": "UsuarioAtendido",
+      "value": ""
+    }
+  ],
+  "slaStatus": "ON_TIME",
+  "status": "OPEN",
+  "processDescription": "Abertura de Chamado",
+  "deadlineSpecification": null,
+  "_expandables": [
+    "requester",
+    "formRecord",
+    "activities",
+    "deadlineSpecification"
+  ]
+}

@@ -46,10 +46,24 @@ def fazer_login_fluig(ambiente: str = "PRD", usuario: str = None, senha: str = N
             return None
         
         logger.info(f"[fazer_login_fluig] Iniciando login no Fluig {ambiente_log} - URL: {url_fluig}")
-        driver = ConfigurarDriver(headless=False)
+        logger.info(f"[fazer_login_fluig] Usuário: {usuario}")
+        #logger.info(f"[fazer_login_fluig] Senha: {senha}")
+        
+        # Detecta se está em Docker e força headless
+        import os
+        is_docker = os.path.exists('/.dockerenv') or os.environ.get('K_SERVICE') or os.environ.get('DOCKER_CONTAINER')
+        headless_mode = is_docker  # Força headless em Docker
+        
+        driver = ConfigurarDriver(headless=headless_mode)
+        
+        # Timeout aumentado para ambientes Docker
+        driver.set_page_load_timeout(60)
+        driver.implicitly_wait(10)
+        
         driver.get(url_fluig)
         
-        wait = WebDriverWait(driver, 20)
+        # Timeout aumentado para ambiente Docker/Cloud Run
+        wait = WebDriverWait(driver, 30)
         
 
         logger.info("[fazer_login_fluig] Preenchendo campo de usuário...")

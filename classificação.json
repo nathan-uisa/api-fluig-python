@@ -1,0 +1,420 @@
+{
+	"processInstanceId": 688627,
+	"processId": "Abertura de Chamados",
+	"version": 58,
+	"taskUserId": "f91b4d01ddc24241b2e1915657bebcd4",
+	"completeTask": true,
+	"currentMovto": 3,
+	"managerMode": false,
+	"selectedDestinyAfterAutomatic": -1,
+	"conditionAfterAutomatic": -1,
+	"selectedColleague": [],
+	"comments": "",
+	"newObservations": [],
+	"appointments": [],
+	"attachments": [],
+	"digitalSignature": false,
+	"formData": [
+		{
+			"name": "num_tel_contato",
+			"value": "65996204906"
+		},
+		{
+			"name": "sl_aproCompl",
+			"value": ""
+		},
+		{
+			"name": "ds_titulo",
+			"value": "Desbloqueio de Usuário AD"
+		},
+		{
+			"name": "ds_chamado",
+			"value": "Favor desbloquear meu usuário AD ad8004717"
+		},
+		{
+			"name": "tx_conversa",
+			"value": ""
+		},
+		{
+			"name": "tx_conversa_formatada",
+			"value": ""
+		},
+		{
+			"name": "falante",
+			"value": ""
+		},
+		{
+			"name": "momento",
+			"value": ""
+		},
+		{
+			"name": "tx_conversa___1",
+			"value": ""
+		},
+		{
+			"name": "tx_conversa_formatada___1",
+			"value": ""
+		},
+		{
+			"name": "falante___1",
+			"value": ""
+		},
+		{
+			"name": "momento___1",
+			"value": ""
+		},
+		{
+			"name": "nm_emitente",
+			"value": "Nathan Renner de Azevedo"
+		},
+		{
+			"name": "NomeRegistrador",
+			"value": "Nathan Renner de Azevedo"
+		},
+		{
+			"name": "h_solicitante",
+			"value": "f91b4d01ddc24241b2e1915657bebcd4"
+		},
+		{
+			"name": "email_solicitante",
+			"value": "nathan.azevedo@uisa.com.br"
+		},
+		{
+			"name": "num_solicitacao",
+			"value": "688627"
+		},
+		{
+			"name": "num_atividade",
+			"value": "5"
+		},
+		{
+			"name": "status",
+			"value": "0"
+		},
+		{
+			"name": "WKUserGestor",
+			"value": ""
+		},
+		{
+			"name": "WKUserDiretor",
+			"value": ""
+		},
+		{
+			"name": "Compliance",
+			"value": ""
+		},
+		{
+			"name": "equipamento",
+			"value": ""
+		},
+		{
+			"name": "dt_abertura",
+			"value": "02/02/2026 16:29"
+		},
+		{
+			"name": "ds_cargo",
+			"value": ""
+		},
+		{
+			"name": "ds_secao",
+			"value": ""
+		},
+		{
+			"name": "ds_empresa",
+			"value": ""
+		},
+		{
+			"name": "num_cr_elab",
+			"value": ""
+		},
+		{
+			"name": "ds_email_sol",
+			"value": "nathan.azevedo@uisa.com.br"
+		},
+		{
+			"name": "_num_tel_contato",
+			"value": "65996204906"
+		},
+		{
+			"name": "ch_sap",
+			"value": "0"
+		},
+		{
+			"name": "criticidade_hana",
+			"value": ""
+		},
+		{
+			"name": "keyuser_mat",
+			"value": ""
+		},
+		{
+			"name": "acesso",
+			"value": "0"
+		},
+		{
+			"name": "sl_acao",
+			"value": ""
+		},
+		{
+			"name": "ds_transacao",
+			"value": ""
+		},
+		{
+			"name": "tx_descricao",
+			"value": ""
+		},
+		{
+			"name": "tx_modulo",
+			"value": ""
+		},
+		{
+			"name": "tx_critico",
+			"value": ""
+		},
+		{
+			"name": "tx_sod",
+			"value": ""
+		},
+		{
+			"name": "tx_esforcoInterno",
+			"value": ""
+		},
+		{
+			"name": "tx_esforcoExterno",
+			"value": ""
+		},
+		{
+			"name": "tx_justificativa",
+			"value": ""
+		},
+		{
+			"name": "sl_AcessoRM",
+			"value": "G"
+		},
+		{
+			"name": "ds_perfilRM",
+			"value": ""
+		},
+		{
+			"name": "tx_perfilRM",
+			"value": ""
+		},
+		{
+			"name": "hi_codSistema",
+			"value": ""
+		},
+		{
+			"name": "hi_codPerfil",
+			"value": ""
+		},
+		{
+			"name": "tx_criticoRM",
+			"value": ""
+		},
+		{
+			"name": "tx_justificativaRM",
+			"value": ""
+		},
+		{
+			"name": "sl_acao_PIMS",
+			"value": ""
+		},
+		{
+			"name": "ds_moduloPIMS",
+			"value": ""
+		},
+		{
+			"name": "tx_modulo_PIMS",
+			"value": ""
+		},
+		{
+			"name": "tx_descricao_Aplicativo",
+			"value": ""
+		},
+		{
+			"name": "ds_acessoPIMS",
+			"value": ""
+		},
+		{
+			"name": "tx_menu",
+			"value": ""
+		},
+		{
+			"name": "tx_descricao_objeto",
+			"value": ""
+		},
+		{
+			"name": "tx_critico_PIMS",
+			"value": ""
+		},
+		{
+			"name": "tx_sod_PIMS",
+			"value": ""
+		},
+		{
+			"name": "tx_esforcoInterno_PIMS",
+			"value": ""
+		},
+		{
+			"name": "tx_esforcoExterno_PIMS",
+			"value": ""
+		},
+		{
+			"name": "tx_justificativa_PIMS",
+			"value": ""
+		},
+		{
+			"name": "ds_grupo_servico",
+			"value": "SERVIÇOS DE SUPORTE TÉCNICO"
+		},
+		{
+			"name": "ds_item_servico",
+			"value": "SERVIÇOS DE SUPORTE TÉCNICO"
+		},
+		{
+			"name": "tipo_ativo",
+			"value": ""
+		},
+		{
+			"name": "ds_servico",
+			"value": "Acompanhamento Técnico"
+		},
+		{
+			"name": "urg_alta",
+			"value": "HORÁRIO ADMINISTRATIVO"
+		},
+		{
+			"name": "urg_media",
+			"value": "HORÁRIO ADMINISTRATIVO "
+		},
+		{
+			"name": "urg_baixa",
+			"value": "NA"
+		},
+		{
+			"name": "ds_resp_servico",
+			"value": "Rodrigo da Silva Dias"
+		},
+		{
+			"name": "ds_tipo",
+			"value": "Solicitacao"
+		},
+		{
+			"name": "ds_urgencia",
+			"value": "Média"
+		},
+		{
+			"name": "ds_equipe_resp",
+			"value": "ITSM - ATENDIMENTO SUPORTE TÉCNICO"
+		},
+		{
+			"name": "equipe_resp",
+			"value": "ITSM_SUPORTE_TÉCNICO"
+		},
+		{
+			"name": "KeyUser",
+			"value": "0b9dfec5ce1911eba51f0a586460bdce"
+		},
+		{
+			"name": "status_chamado",
+			"value": "Em Atendimento"
+		},
+		{
+			"name": "_ds_titulo",
+			"value": "Desbloqueio de Usuário AD"
+		},
+		{
+			"name": "_ds_chamado",
+			"value": "Favor desbloquear meu usuário AD ad8004717"
+		},
+		{
+			"name": "ds_solucao",
+			"value": ""
+		},
+		{
+			"name": "status_keyuser",
+			"value": ""
+		},
+		{
+			"name": "fila_resp",
+			"value": ""
+		},
+		{
+			"name": "status_consultoria",
+			"value": ""
+		},
+		{
+			"name": "keyuser_hana",
+			"value": ""
+		},
+		{
+			"name": "vl_esforco_horas",
+			"value": ""
+		},
+		{
+			"name": "ds_atividade",
+			"value": ""
+		},
+		{
+			"name": "qt_horas",
+			"value": ""
+		},
+		{
+			"name": "ds_time_HANA",
+			"value": "Interno"
+		},
+		{
+			"name": "ds_status_HANA",
+			"value": "Pendente"
+		},
+		{
+			"name": "aprova_keyuser",
+			"value": ""
+		},
+		{
+			"name": "aprova_compl",
+			"value": ""
+		},
+		{
+			"name": "UsuarioAtendido",
+			"value": ""
+		},
+		{
+			"name": "ds_keyuser",
+			"value": ""
+		},
+		{
+			"name": "imeiCelular",
+			"value": ""
+		},
+		{
+			"name": "iccid",
+			"value": ""
+		},
+		{
+			"name": "patrimonio",
+			"value": ""
+		},
+		{
+			"name": "imeiTablet",
+			"value": ""
+		},
+		{
+			"name": "fila_resp_1",
+			"value": ""
+		},
+		{
+			"name": "fila_resp_2",
+			"value": ""
+		}
+	],
+	"isDigitalSigned": false,
+	"isLinkReturn": false,
+	"versionDoc": 1000,
+	"selectedState": "9",
+	"internalFields": [],
+	"subProcessId": "Abertura de Chamados",
+	"subProcessSequence": "9",
+	"transferTaskAfterSelection": false,
+	"currentState": 5
+}

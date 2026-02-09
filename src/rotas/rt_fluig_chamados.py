@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Path
 from src.auth.auth_api import Auth_API_KEY
 from src.modelo_dados.modelos_fluig import AberturaChamadoClassificado, DetalhesChamado, AberturaChamado, AberturaChamadoEmail
-from src.web.web_chamado_fluig import obter_detalhes_chamado
 from src.web.web_auth_manager import obter_cookies_validos
 from src.utilitarios_centrais.logger import logger
 from src.modelo_dados.modelo_settings import ConfigEnvSetings
@@ -207,8 +206,8 @@ async def BuscarDetalhesChamado(
             usuario = ConfigEnvSetings.FLUIG_ADMIN_USER
             senha = ConfigEnvSetings.FLUIG_ADMIN_PASS
         else:  # QLD
-            usuario = ConfigEnvSetings.FLUIG_USER_NAME_QLD
-            senha = ConfigEnvSetings.FLUIG_USER_PASS_QLD
+            usuario = ConfigEnvSetings.FLUIG_ADMIN_USER
+            senha = ConfigEnvSetings.FLUIG_ADMIN_PASS
 
         cookies = obter_cookies_validos(ambiente_validado, forcar_login=False, usuario=usuario, senha=senha)
         
@@ -217,9 +216,9 @@ async def BuscarDetalhesChamado(
             raise HTTPException(status_code=500, detail="Falha ao obter autenticação válida no Fluig")
 
         logger.info(f"[BuscarDetalhesChamado] Buscando detalhes...")
-        detalhes = obter_detalhes_chamado(
+        fluig_core = FluigCore(ambiente=ambiente_validado)
+        detalhes = fluig_core.obter_detalhes_chamado(
             process_instance_id=Item.process_instance_id,
-            ambiente=ambiente_validado,
             cookies_list=cookies,
             usuario=usuario
         )

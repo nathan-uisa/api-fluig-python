@@ -37,7 +37,10 @@ class ConfigEnv(BaseSettings):
     IA_KEYS: str
     IA_MODELS: str
     
-    MOVIT_USER_COLLEAGUE_ID: str
+    
+    # Lista de emails que devem usar FakeUser para abertura de chamados
+    # Formato no .env: EMAILS_LIST=email1@dominio.com,email2@dominio.com
+    EMAILS_LIST: str = ""
     
     #-----------------------CONTA DE SERVIÇO GOOGLE-----------------------
     TYPE: str
@@ -69,6 +72,27 @@ class ConfigEnv(BaseSettings):
     #-------------------------API ENDPOINTS (Webapp)-----------------------
     API_ENDPOINT_FUNCIONARIO: str = ""
     API_ENDPOINT_CHAMADO: str = ""
+    #-----------------------------------------------------------------------
+
+    #-------------------------GMAIL MONITOR (Monitoramento de Emails)-----
+    # Habilita/desabilita o serviço de monitoramento de emails para abrir chamados
+    # Valores aceitos: "true", "True", "1" (habilitado) ou "false", "False", "0" (desabilitado)
+    # Padrão: "true" (habilitado)
+    GMAIL_MONITOR_ENABLED: str = "true"
+    
+    # Email do usuário para delegação de domínio (opcional)
+    # Se não configurado, usa a conta de serviço diretamente
+    GMAIL_DELEGATE_USER: str = ""
+    
+    # Endpoints da API para abertura de chamados
+    API_ENDPOINT_CHAMADO_UISA: str = "https://api-fluig-python-186726132534.us-east1.run.app/api/v1/fluig/prd/chamados/abrir"
+    API_ENDPOINT_CHAMADO_MOVTI: str = "https://api-fluig-python-186726132534.us-east1.run.app/terceiro/movit/chamado/abrir-classificado"
+    
+    # Ambiente do Fluig para monitoramento (prd ou qld)
+    GMAIL_MONITOR_AMBIENTE: str = "prd"
+    
+    # Intervalo de verificação de emails (em minutos)
+    GMAIL_CHECK_INTERVAL: int = 1
     #-----------------------------------------------------------------------
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

@@ -1,0 +1,290 @@
+curl -X GET "https://fluig.uisa.com.br/process-management/api/v2/tasks?assignee=f91b4d01ddc24241b2e1915657bebcd4&status=NOT_COMPLETED&slaStatus=ON_TIME&page=1&pageSize=1000&order=processInstanceId" -H "accept: application/json; charset=UTF-8"
+
+
+
+RESPOSTA 
+{
+  "items": [
+    {
+      "processInstanceId": 632554,
+      "movementSequence": 11,
+      "transferSequence": 1,
+      "assignee": {
+        "code": "f91b4d01ddc24241b2e1915657bebcd4",
+        "name": "Nathan Renner de Azevedo",
+        "mail": "nathan.azevedo@uisa.com.br",
+        "login": "nathan.azevedo.uisa.com.br.1",
+        "local": null,
+        "_expandables": [
+          "local"
+        ]
+      },
+      "status": "NOT_COMPLETED",
+      "slaStatus": "ON_TIME",
+      "startDate": "2025-10-24T16:03:41.425-0400",
+      "assignStartDate": "2026-01-05T15:43:02.692-0400",
+      "chosenAssignees": null,
+      "processId": "SAIS - Solicitação de Alteração em Item de Serviço",
+      "requester": {
+        "code": "189df887176d472b9bb49962b298284c",
+        "name": "Viviane de Carvalho Ferreira Soares",
+        "mail": "viviane.soares@uisa.com.br",
+        "login": "viviane.soares.uisa.com.br.1",
+        "local": null,
+        "_expandables": [
+          "local"
+        ]
+      },
+      "processVersion": 11,
+      "processDescription": "SPAM, DEMANDAS e PROJETOS",
+      "state": {
+        "sequence": 21,
+        "stateName": "Execução",
+        "stateDescription": "Execução",
+        "stateType": "SIMPLE",
+        "bpmnType": "TASK_NORMAL",
+        "configuration": null,
+        "_expandables": [
+          "instructions",
+          "configuration"
+        ]
+      },
+      "threadSequence": 0,
+      "appDecisionInfo": null,
+      "formFields": null,
+      "deadlineSpecification": null,
+      "approachingExpiration": false,
+      "_expandables": [
+        "chosenAssignees",
+        "appDecisionInfo",
+        "formFields",
+        "deadlineSpecification"
+      ]
+    },
+    {
+      "processInstanceId": 639490,
+      "movementSequence": 11,
+      "transferSequence": 1,
+      "assignee": {
+        "code": "f91b4d01ddc24241b2e1915657bebcd4",
+        "name": "Nathan Renner de Azevedo",
+        "mail": "nathan.azevedo@uisa.com.br",
+        "login": "nathan.azevedo.uisa.com.br.1",
+        "local": null,
+        "_expandables": [
+          "local"
+        ]
+      },
+      "status": "NOT_COMPLETED",
+      "slaStatus": "ON_TIME",
+      "startDate": "2025-12-29T11:24:52.036-0400",
+      "assignStartDate": "2026-02-03T08:02:10.126-0400",
+      "chosenAssignees": null,
+      "processId": "SAIS - Solicitação de Alteração em Item de Serviço",
+      "requester": {
+        "code": "20bc295e7b7e11eb8bc80a5864600183",
+        "name": "Jose Elias da Rocha Souza",
+        "mail": "jose.rocha@uisa.com.br",
+        "login": "jose.rocha.uisa.com.br.1",
+        "local": null,
+        "_expandables": [
+          "local"
+        ]
+      },
+      "processVersion": 11,
+      "processDescription": "SPAM, DEMANDAS e PROJETOS",
+      "state": {
+        "sequence": 21,
+        "stateName": "Execução",
+        "stateDescription": "Execução",
+        "stateType": "SIMPLE",
+        "bpmnType": "TASK_NORMAL",
+        "configuration": null,
+        "_expandables": [
+          "instructions",
+          "configuration"
+        ]
+      },
+      "threadSequence": 0,
+      "appDecisionInfo": null,
+      "formFields": null,
+      "deadlineSpecification": null,
+      "approachingExpiration": false,
+      "_expandables": [
+        "chosenAssignees",
+        "appDecisionInfo",
+        "formFields",
+        "deadlineSpecification"
+      ]
+    },
+    {
+      "processInstanceId": 639630,
+      "movementSequence": 11,
+      "transferSequence": 1,
+      "assignee": {
+        "code": "f91b4d01ddc24241b2e1915657bebcd4",
+        "name": "Nathan Renner de Azevedo",
+        "mail": "nathan.azevedo@uisa.com.br",
+        "login": "nathan.azevedo.uisa.com.br.1",
+        "local": null,
+        "_expandables": [
+          "local"
+        ]
+      },
+      "status": "NOT_COMPLETED",
+      "slaStatus": "ON_TIME",
+      "startDate": "2025-12-29T11:27:03.397-0400",
+      "assignStartDate": "2026-02-03T08:02:36.005-0400",
+      "chosenAssignees": null,
+      "processId": "SAIS - Solicitação de Alteração em Item de Serviço",
+      "requester": {
+        "code": "20bc295e7b7e11eb8bc80a5864600183",
+        "name": "Jose Elias da Rocha Souza",
+        "mail": "jose.rocha@uisa.com.br",
+        "login": "jose.rocha.uisa.com.br.1",
+        "local": null,
+        "_expandables": [
+          "local"
+        ]
+      },
+      "processVersion": 11,
+      "processDescription": "SPAM, DEMANDAS e PROJETOS",
+      "state": {
+        "sequence": 21,
+        "stateName": "Execução",
+        "stateDescription": "Execução",
+        "stateType": "SIMPLE",
+        "bpmnType": "TASK_NORMAL",
+        "configuration": null,
+        "_expandables": [
+          "instructions",
+          "configuration"
+        ]
+      },
+      "threadSequence": 0,
+      "appDecisionInfo": null,
+      "formFields": null,
+      "deadlineSpecification": null,
+      "approachingExpiration": false,
+      "_expandables": [
+        "chosenAssignees",
+        "appDecisionInfo",
+        "formFields",
+        "deadlineSpecification"
+      ]
+    },
+    {
+      "processInstanceId": 656304,
+      "movementSequence": 3,
+      "transferSequence": 1,
+      "assignee": {
+        "code": "f91b4d01ddc24241b2e1915657bebcd4",
+        "name": "Nathan Renner de Azevedo",
+        "mail": "nathan.azevedo@uisa.com.br",
+        "login": "nathan.azevedo.uisa.com.br.1",
+        "local": null,
+        "_expandables": [
+          "local"
+        ]
+      },
+      "status": "NOT_COMPLETED",
+      "slaStatus": "ON_TIME",
+      "startDate": "2025-11-17T13:52:05.695-0400",
+      "assignStartDate": "2026-02-06T15:26:17.947-0400",
+      "chosenAssignees": null,
+      "processId": "Abertura de Chamados",
+      "requester": {
+        "code": "processosautomatizadosdeinfra",
+        "name": "Infra Automação",
+        "mail": "processosautomatizadosdeinfra",
+        "login": "processosautomatizadosdeinfra",
+        "local": null,
+        "_expandables": [
+          "local"
+        ]
+      },
+      "processVersion": 57,
+      "processDescription": "Abertura de Chamado",
+      "state": {
+        "sequence": 5,
+        "stateName": "Aguardando Classificação",
+        "stateDescription": "Aguardando Classificação",
+        "stateType": "SIMPLE",
+        "bpmnType": "TASK_NORMAL",
+        "configuration": null,
+        "_expandables": [
+          "instructions",
+          "configuration"
+        ]
+      },
+      "threadSequence": 0,
+      "appDecisionInfo": null,
+      "formFields": null,
+      "deadlineSpecification": null,
+      "approachingExpiration": false,
+      "_expandables": [
+        "chosenAssignees",
+        "appDecisionInfo",
+        "formFields",
+        "deadlineSpecification"
+      ]
+    },
+    {
+      "processInstanceId": 690487,
+      "movementSequence": 3,
+      "transferSequence": 1,
+      "assignee": {
+        "code": "f91b4d01ddc24241b2e1915657bebcd4",
+        "name": "Nathan Renner de Azevedo",
+        "mail": "nathan.azevedo@uisa.com.br",
+        "login": "nathan.azevedo.uisa.com.br.1",
+        "local": null,
+        "_expandables": [
+          "local"
+        ]
+      },
+      "status": "NOT_COMPLETED",
+      "slaStatus": "ON_TIME",
+      "startDate": "2026-02-05T14:15:05.692-0400",
+      "assignStartDate": "2026-02-06T08:53:45.786-0400",
+      "chosenAssignees": null,
+      "processId": "Abertura de Chamados",
+      "requester": {
+        "code": "d36cf86bd69011eab11e0a5864613db3",
+        "name": "Leone Santos Figueredo",
+        "mail": "leone.figueredo@uisa.com.br",
+        "login": "leone.figueredo.uisa.com.br.1",
+        "local": null,
+        "_expandables": [
+          "local"
+        ]
+      },
+      "processVersion": 58,
+      "processDescription": "Abertura de Chamado",
+      "state": {
+        "sequence": 5,
+        "stateName": "Aguardando Classificação",
+        "stateDescription": "Aguardando Classificação",
+        "stateType": "SIMPLE",
+        "bpmnType": "TASK_NORMAL",
+        "configuration": null,
+        "_expandables": [
+          "instructions",
+          "configuration"
+        ]
+      },
+      "threadSequence": 0,
+      "appDecisionInfo": null,
+      "formFields": null,
+      "deadlineSpecification": null,
+      "approachingExpiration": false,
+      "_expandables": [
+        "chosenAssignees",
+        "appDecisionInfo",
+        "formFields",
+        "deadlineSpecification"
+      ]
+    }
+  ],
+  "hasNext": false
+}

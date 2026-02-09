@@ -1,0 +1,353 @@
+/* Estilos para as sidebars de chamados (MEUS CHAMADOS e TODOS ANALISTAS) */
+
+/* Layout com Sidebar */
+.content-wrapper {
+    position: relative;
+    margin-top: 20px;
+}
+/* Sidebar */
+.chamados-sidebar {
+    position: fixed;
+    left: 20px;
+    top: 120px;
+    width: 320px;
+    min-width: 320px;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: flex-start;
+    max-height: calc(100vh - 140px);
+    z-index: 100;
+    transition: width 0.3s ease, min-width 0.3s ease, left 0.3s ease, right 0.3s ease;
+    box-shadow: none;
+}
+
+.chamados-sidebar.collapsed {
+    width: 50px;
+    min-width: 50px;
+    left: 20px;
+}
+
+/* Sidebar direita (TODOS ANALISTAS) */
+.chamados-sidebar.chamados-sidebar-right {
+    left: auto !important;
+    right: 20px !important;
+}
+
+#chamados-sidebar-right {
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+#chamados-sidebar {
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+.chamados-sidebar.chamados-sidebar-right.collapsed {
+    left: auto !important;
+    right: 20px !important;
+}
+
+.sidebar-header {
+    padding-top: 1px;
+    padding-bottom: 1px;
+    padding-left: 24px;
+    padding-right: 24px;
+    height: 51px;
+    border-bottom: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: transparent;
+}
+
+.sidebar-header h3 {
+    margin: 0;
+    font-size: var(--font-size-titles);
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.chamados-sidebar.collapsed .sidebar-header h3 {
+    display: none;
+}
+
+.sidebar-toggle {
+    background: transparent;
+    border: 1px solid var(--border-primary);
+    color: var(--text-primary);
+    cursor: pointer;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    transition: all 0.2s;
+}
+
+.sidebar-toggle:hover {
+    background: var(--bg-input-focus);
+    border-color: var(--border-secondary);
+}
+
+.chamados-sidebar.collapsed .sidebar-toggle .toggle-icon {
+    transform: rotate(180deg);
+}
+
+.sidebar-content {
+    flex: 1;
+    overflow-y: auto;
+    padding-top: 2px;
+    padding-bottom: 2px;
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+.chamados-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    color: var(--text-muted);
+    gap: 15px;
+}
+
+.spinner-small {
+    width: 24px;
+    height: 24px;
+    border: 3px solid var(--border-primary);
+    border-top-color: var(--btn-primary-bg);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.chamados-error {
+    padding: 15px;
+    background: var(--error-bg);
+    color: var(--error-text);
+    border: 1px solid var(--error-border);
+    border-radius: var(--border-radius);
+    margin: 10px;
+}
+
+.chamados-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px; /*espaçamento entre os botões de chamado*/
+}
+
+/* Espaçador invisível para manter altura fixa na paginação */
+.chamado-spacer {
+    pointer-events: none;
+    visibility: hidden;
+    opacity: 0;
+}
+
+/* Botões de chamado na sidebar */
+.chamado-btn {
+    width: 300px;
+    height: 64px;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 0 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+    color: var(--text-primary);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.3;
+    overflow: hidden;
+}
+
+.chamado-btn-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+}
+
+.chamado-btn-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+
+.chamado-num {
+    font-weight: 600;
+    color: var(--btn-primary-bg);
+    font-size: 11px;
+}
+
+.chamado-data {
+    font-size: 10px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.chamado-titulo {
+    font-size: 11px;
+    color: var(--text-primary);
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.chamado-emitente {
+    font-size: 10px;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.chamado-btn:hover {
+    background: transparent;
+    border: none;
+    transform: translateX(2px);
+    opacity: 0.8;
+}
+
+.chamado-btn.active {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+.chamado-btn.active .chamado-num,
+.chamado-btn.active .chamado-titulo {
+    color: var(--btn-primary-bg);
+}
+
+.chamado-btn:focus {
+    outline: none;
+    border: none;
+}
+
+.chamado-btn:active {
+    transform: translateX(2px) scale(0.98);
+}
+
+.chamado-empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+/* Paginação */
+.pagination-container {
+    padding-top: 5px;
+    padding-bottom: 5px;
+    padding-left: 10px;
+    padding-right: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-top: 1px solid var(--border-primary);
+    margin-top: 10px;
+}
+
+#chamados-grupo-pagination {
+    padding-top: 5px;
+    padding-bottom: 5px;
+}
+
+.pagination-wrapper {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+}
+
+.pagination-btn {
+    min-width: 32px;
+    height: 32px;
+    padding: 0 8px;
+    background: transparent;
+    border: 1px solid var(--border-primary);
+    border-radius: var(--border-radius);
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pagination-btn:hover {
+    background: var(--bg-input-focus);
+    border-color: var(--border-secondary);
+    color: var(--text-primary);
+}
+
+.pagination-btn.active {
+    background: var(--btn-primary-bg);
+    border-color: var(--btn-primary-bg);
+    color: var(--btn-text);
+}
+
+.pagination-btn.active:hover {
+    background: var(--btn-primary-bg-hover);
+    border-color: var(--btn-primary-bg-hover);
+}
+
+.pagination-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: var(--bg-input-readonly);
+    border-color: var(--border-tertiary);
+}
+
+/* Ajustes do conteúdo principal para acomodar as sidebars */
+.main-content {
+    margin-left: 360px; /* 320px (sidebar esquerda) + 20px (gap) + 20px (padding) */
+    margin-right: 360px; /* 320px (sidebar direita) + 20px (gap) + 20px (padding) */
+    transition: margin-left 0.3s ease, margin-right 0.3s ease, width 0.3s ease;
+    width: calc(100% - 720px); /* 360px (esquerda) + 360px (direita) */
+    max-width: calc(100% - 720px);
+}
+
+.content-wrapper:has(.chamados-sidebar.collapsed) .main-content {
+    margin-left: 90px; /* 50px (sidebar collapsed) + 20px (gap) + 20px (padding) */
+    margin-right: 360px; /* 320px (sidebar direita) + 20px (gap) + 20px (padding) */
+    width: calc(100% - 450px); /* 90px (esquerda) + 360px (direita) */
+    max-width: calc(100% - 450px);
+}
+
+/* Nota: A animação @keyframes spin está definida em style.css e é compartilhada com outros componentes */
+
+/* Responsividade */
+@media (max-width: 768px) {
+    .chamados-sidebar,
+    .chamados-sidebar.chamados-sidebar-right {
+        position: relative;
+        left: 0;
+        right: 0;
+        top: 0;
+        width: 100%;
+        max-height: 300px;
+        margin-bottom: 20px;
+    }
+    
+    .main-content {
+        margin-left: 0;
+        margin-right: 0;
+        width: 100%;
+        max-width: 100%;
+    }
+}

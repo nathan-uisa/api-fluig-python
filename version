@@ -343,3 +343,136 @@ Versão 3.5.0
     * Link de documentação (.docs-link): adicionados margin-left e margin-right de 5px para melhor espaçamento
     * Cabeçalho de versão (.version-header): adicionados margin-left e margin-right de 0px para alinhamento correto
     * Texto de versão (.version-text): adicionados margin-left e margin-right de 0px para remover espaçamento indesejado
+
+Versão 3.6.0
+  IMPLEMENTAÇÕES:
+  - Nova funcionalidade de FakeUser baseada em lista de emails:
+    * Nova configuração EMAILS_LIST no .env para definir emails que devem usar FakeUser
+    * Função _email_na_lista_fakeuser() verifica se email do solicitante está na lista
+    * PayloadChamadoNormal() e PayloadChamadoClassificado() agora verificam EMAILS_LIST
+    * Se email estiver na lista, utiliza FakeUser() ao invés de buscar no dataset colleague
+    * Comparação case-insensitive (não diferencia maiúsculas/minúsculas)
+    * Formato no .env: EMAILS_LIST=email1@dominio.com,email2@dominio.com
+
+Versão 3.8.0
+  IMPLEMENTAÇÕES:
+  - Módulo completo de monitoramento de emails (Gmail Monitor):
+    * Criação do módulo src/gmail_monitor/ que substitui completamente o Apps Script do Google
+    * Monitoramento automático de emails não lidos do Gmail em background
+    * Processamento automático de emails seguindo o fluxo completo de abertura de chamados
+    * Integração com Google Drive API para upload de anexos
+    * Integração com People API para busca de telefone no diretório do Google Workspace
+    * Integração com Gmail API para envio de emails de confirmação
+  - Componentes do Gmail Monitor:
+    * gmail_service.py - Serviço principal de monitoramento e processamento de emails
+    * email_validator.py - Validação de domínio e emails bloqueados
+    * drive_uploader.py - Upload de anexos no Google Drive
+    * people_service.py - Busca de telefone no diretório do Google Workspace
+    * email_sender.py - Envio de emails via Gmail API
+    * background_service.py - Serviço em background para execução periódica
+  - Funcionalidades do monitoramento:
+    * Busca emails não lidos automaticamente a cada intervalo configurável
+    * Valida remetentes (domínio UISA ou emails permitidos como Movit)
+    * Processa anexos e salva no Google Drive antes de abrir chamado
+    * Busca telefone do remetente no diretório do Google Workspace
+    * Chama API para abrir chamado (UISA ou Movit conforme email)
+    * Envia email de confirmação ao usuário com número do chamado e link
+    * Marca emails como processados com label "PROCESSADOS"
+  - Configurações adicionadas:
+    * GMAIL_DELEGATE_USER - Email para delegação de domínio (obrigatório para People API)
+    * API_ENDPOINT_CHAMADO_UISA - Endpoint da API para chamados UISA
+    * API_ENDPOINT_CHAMADO_MOVTI - Endpoint da API para chamados Movit
+    * GMAIL_MONITOR_AMBIENTE - Ambiente do Fluig para monitoramento (prd ou qld)
+    * GMAIL_CHECK_INTERVAL - Intervalo de verificação de emails (em minutos)
+
+Versão 3.8.1
+  IMPLEMENTAÇÕES:
+  - Suíte completa de testes para o módulo Gmail Monitor:
+    * test_listar_emails_nao_lidos.py - Lista emails não lidos
+    * test_listar_emails_processados.py - Lista emails marcados como processados
+    * test_checar_permissoes.py - Verifica permissões da conta de serviço
+    * test_enviar_email.py - Testa envio de emails
+    * test_listar_contatos_people.py - Lista contatos do People API
+    * test_processar_email_mais_recente.py - Teste de integração completo
+    * test_verificar_api.py - Verifica se a API está acessível
+    * run_all_tests.py - Executa todos os testes automaticamente
+  - Documentação completa:
+    * docs/GMAIL_MONITOR_SETUP.md - Guia completo de configuração
+    * tests/gmail_monitor/README.md - Documentação dos testes
+
+Versão 3.8.2
+  IMPLEMENTAÇÕES:
+  - Correções críticas no processamento de emails:
+    * Email só é marcado como processado se o chamado for aberto com sucesso
+    * Em caso de falha (404, 500, rejeição, etc.), email permanece não lido para nova tentativa
+    * Função _processar_resposta_chamado() agora retorna True/False indicando sucesso
+    * Lógica de marcação condicional implementada tanto no serviço principal quanto nos testes
+  - Melhorias no tratamento de erros:
+    * Logs detalhados quando email não é marcado devido à falha
+    * Tratamento específico para cada tipo de falha (API, validação, processamento)
+    * Emails bloqueados ainda são marcados como processados (não tenta novamente)
+  - Correções técnicas:
+    * Remoção de parâmetro orderBy não suportado pela API do Gmail
+    * Normalização de ambiente para minúsculo na construção de URLs
+    * Logs melhorados com informações de URL chamada e resposta completa
+
+Versão 3.8.3
+  IMPLEMENTAÇÕES:
+  - Melhorias nos testes e scripts:
+    * Remoção de todos os emojis dos scripts de teste (substituídos por [OK], [ERRO], [AVISO])
+    * Script test_verificar_api.py força uso de localhost para testes locais
+    * Melhorias na documentação e mensagens de erro dos testes
+    * Correção de delegação de domínio obrigatória para People API
+    * Validação de query obrigatória para People API nos testes
+
+Versão 4.1.0
+  IMPLEMENTAÇÕES:
+  - Refatoração do módulo Gmail Monitor para usar funções internas:
+    * Removido uso de requisições HTTP para chamar a própria API
+    * Implementado uso direto de FluigCore.AberturaDeChamado() para abrir chamados
+    * Processamento de anexos integrado (baixar do Drive e anexar ao chamado)
+    * Melhor performance e confiabilidade (não depende da API estar rodando)
+    * Eliminação de overhead de rede e autenticação HTTP desnecessária
+  - Melhorias na arquitetura:
+    * Código mais limpo e direto, reutilizando lógica existente
+    * Redução de dependências externas (não precisa da API rodando)
+    * Processamento de anexos unificado (mesma lógica das rotas HTTP)
+  - Implementação completa da BLACK_LIST_EMAILS:
+    * Nova função _obter_blacklist_emails() lê variável BLACK_LIST_EMAILS do .env
+    * Validação de emails bloqueados antes de processar chamados
+    * Emails na blacklist são ignorados sem marcar como processados (apenas passa)
+    * Outros emails bloqueados continuam sendo marcados como processados
+    * Suporte a lista separada por vírgulas no formato: email1@dominio.com,email2@dominio.com
+  - Melhorias na validação de emails:
+    * Função validar_email_uisa() retorna campo is_blacklist para diferenciar tipos de bloqueio
+    * Verificação de BLACK_LIST_EMAILS antes de outras validações
+    * Logs detalhados quando email é bloqueado pela blacklist
+    * Comportamento diferenciado: blacklist apenas passa, outros bloqueios marcam como processado
+
+Versão 5.3.0
+  IMPLEMENTAÇÕES:
+  - Ajustes de estilo CSS na sidebar de chamados:
+    * Sidebar de chamados: adicionados justify-content: flex-start e align-items: flex-start
+    * Botões de chamado: removido padding-top e padding-bottom (padding: 0 14px)
+    * Margens da sidebar ajustadas para 25px (top e bottom)
+  - Nova funcionalidade de listagem de chamados do grupo ITSM_TODOS:
+    * Nova rota GET /api/chamados/grupo-itsm-todos para listar chamados do grupo Pool:Group:ITSM_TODOS
+    * Filtros aplicados: status=NOT_COMPLETED e slaStatus=ON_TIME
+    * Busca detalhes completos de cada chamado retornado
+    * Teste criado em tests/fluig/test_listar_chamados_grupo_itsm_todos.py
+  - Nova sidebar "TODOS ANALISTAS" no lado direito:
+    * Sidebar direita adicionada com estrutura idêntica à sidebar "MEUS CHAMADOS"
+    * Posicionamento fixo no lado direito da tela (right: 20px)
+    * Mesmo layout, formatação e estilo da sidebar esquerda
+    * Carregamento automático de chamados do grupo ITSM_TODOS ao abrir a página
+  - Sistema de paginação na sidebar "TODOS ANALISTAS":
+    * Paginação frontend com 10 chamados por página
+    * Controles de paginação abaixo da lista (botões numerados: 1, 2, 3, 4, etc.)
+    * Botão da página atual destacado visualmente
+    * Navegação por clique nos números de página
+    * Paginação oculta automaticamente quando há 1 página ou menos
+  - Ajustes de layout para duas sidebars:
+    * Conteúdo principal centralizado entre as duas sidebars
+    * Margens ajustadas: margin-left: 360px e margin-right: 360px
+    * Largura calculada: width: calc(100% - 720px)
+    * Responsividade atualizada para dispositivos móveis (ambas as sidebars)

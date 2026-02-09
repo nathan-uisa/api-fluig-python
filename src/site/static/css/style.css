@@ -1,3 +1,68 @@
+/* Fontes Ubuntu - @font-face */
+@font-face {
+    font-family: 'Ubuntu';
+    src: url('../fonts/Ubuntu/Ubuntu-Regular.ttf') format('truetype');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Ubuntu';
+    src: url('../fonts/Ubuntu/Ubuntu-Italic.ttf') format('truetype');
+    font-weight: 400;
+    font-style: italic;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Ubuntu';
+    src: url('../fonts/Ubuntu/Ubuntu-Light.ttf') format('truetype');
+    font-weight: 300;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Ubuntu';
+    src: url('../fonts/Ubuntu/Ubuntu-LightItalic.ttf') format('truetype');
+    font-weight: 300;
+    font-style: italic;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Ubuntu';
+    src: url('../fonts/Ubuntu/Ubuntu-Medium.ttf') format('truetype');
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Ubuntu';
+    src: url('../fonts/Ubuntu/Ubuntu-MediumItalic.ttf') format('truetype');
+    font-weight: 500;
+    font-style: italic;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Ubuntu';
+    src: url('../fonts/Ubuntu/Ubuntu-Bold.ttf') format('truetype');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Ubuntu';
+    src: url('../fonts/Ubuntu/Ubuntu-BoldItalic.ttf') format('truetype');
+    font-weight: 700;
+    font-style: italic;
+    font-display: swap;
+}
+
 /* Tema Escuro Simples - Variáveis de Cores */
 :root {
     /* Cores de Fundo */
@@ -57,6 +122,8 @@
     --shadow-focus: rgba(58, 58, 58, 0.2);
     --shadow-primary: rgba(37, 99, 235, 0.3);
     --shadow-white: rgba(255, 255, 255, 0.1);
+
+    --font-size-titles:15px
 }
 
 /* Tema Escuro Simples */
@@ -67,7 +134,7 @@
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    font-family: 'Ubuntu', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Cantarell, sans-serif;
     background: var(--bg-primary);
     color: var(--text-secondary);
     min-height: 100vh;
@@ -84,11 +151,13 @@ body:has(.login-container) {
 }
 
 .main-wrapper {
-    max-width: 1200px;
-    margin: 0 auto;
+    max-width: 100%;
+    margin: 0;
     padding: 20px;
-    font-family: Ubuntu;
+    font-family: 'Ubuntu', sans-serif;
+    position: relative;
 }
+
 
 .login-container {
     background: var(--bg-container);
@@ -128,7 +197,7 @@ body:has(.login-container) {
     color: var(--bg-secondary);
     text-decoration: none;
     border-radius: var(--border-radius);
-    font-size: 15px;
+    font-size: var(--font-size-titles);
     font-weight: 500;
     transition: all 0.2s ease;
     border: 1px solid var(--border-primary);
@@ -235,13 +304,17 @@ body:has(.login-container) {
 }
 
 .page-title {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
     color: var(--text-primary);
     font-size: 34px;
     font-weight: 700;
     margin: 0 0 20px 0;
     text-align: center;
     letter-spacing: -0.5px;
-    font-family: Ubuntu;
+    font-family: 'Ubuntu', sans-serif;
 }
 
 .user-info-header {
@@ -296,7 +369,7 @@ body:has(.login-container) {
 
 .section-title {
     color: var(--text-primary);
-    font-size: 15px;
+    font-size: var(--font-size-titles);
     font-weight: 600;
     margin: 0;
     text-transform: uppercase;
@@ -306,7 +379,7 @@ body:has(.login-container) {
 .section-content {
     padding: 28px 24px;
     background: var(--bg-section);
-    font-family: Ubuntu;
+    font-family: 'Ubuntu', sans-serif;
 }
 
 .form-grid-two {
@@ -484,7 +557,7 @@ body:has(.login-container) {
     border: 1px solid var(--border-primary);
     border-radius: var(--border-radius);
     color: var(--text-secondary);
-    font-size: 15px;
+    font-size: var(--font-size-titles);
     transition: all 0.2s ease;
 }
 
@@ -550,7 +623,7 @@ body:has(.login-container) {
 .btn-secondary {
     padding: 12px 24px;
     border-radius: var(--border-radius);
-    font-size: 15px;
+    font-size: var(--font-size-titles);
     font-weight: 500;
     cursor: pointer;
     border: none;
@@ -595,6 +668,11 @@ body:has(.login-container) {
 @media (max-width: 768px) {
     .main-wrapper {
         padding: 16px;
+    }
+    
+    
+    .content-wrapper {
+        flex-direction: column;
     }
     
     .section-content {
@@ -792,8 +870,8 @@ body:has(.login-container) {
 .chamado-item {
     padding: 12px 16px;
     margin-bottom: 8px;
-    background: var(--bg-section);
-    border: 1px solid var(--border-primary);
+    background: transparent;
+    border: none;
     border-radius: var(--border-radius);
     display: flex;
     align-items: center;
@@ -806,13 +884,13 @@ body:has(.login-container) {
 }
 
 .chamado-item.success {
-    border-color: var(--success-border);
-    background: var(--success-bg);
+    border: none;
+    background: transparent;
 }
 
 .chamado-item.error {
-    border-color: var(--error-border);
-    background: var(--error-bg);
+    border: none;
+    background: transparent;
 }
 
 .chamado-item-icon {
@@ -827,7 +905,7 @@ body:has(.login-container) {
 .chamado-item-id {
     font-weight: 600;
     color: var(--text-primary);
-    font-size: 15px;
+    font-size: var(--font-size-titles);
 }
 
 .chamado-item-mensagem {
@@ -932,7 +1010,7 @@ label:has(input[type="checkbox"]#ignorar_primeira_linha):hover {
 
 /* Estilos para version-text */
 .version-text {
-    font-family: Ubuntu;
+    font-family: 'Ubuntu', sans-serif;
     padding-left: 5px;
     padding-right: 5px;
     margin-left: 0px;
@@ -942,7 +1020,7 @@ label:has(input[type="checkbox"]#ignorar_primeira_linha):hover {
 
 /* Estilos para docs-link */
 .docs-link {
-    font-family: Ubuntu;
+    font-family: 'Ubuntu', sans-serif;
     color: rgba(224, 224, 224, 1);
     box-shadow: 0px 4px 12px 0px rgba(0, 0, 0, 0.15);
     margin-left: 5px;

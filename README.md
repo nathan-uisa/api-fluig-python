@@ -32,6 +32,7 @@ API REST desenvolvida com FastAPI para integração com o sistema Fluig, permiti
 - **Autenticação Automática**: Sistema de gerenciamento de cookies com validação de expiração e re-autenticação automática
 - **Inteligência Artificial**: Extração de informações de chamados usando Google Generative AI (Gemini)
 - **Autenticação via API Key**: Proteção de todas as rotas com API Key
+- **Monitoramento de Emails**: Processamento automático de emails do Gmail para abertura de chamados (substitui Apps Script)
 - **Logs Completos**: Sistema abrangente de logging com rastreamento detalhado em todas as operações
 - **Validação Robusta**: Tratamento de erros e validações em todas as etapas do processo
 
@@ -469,9 +470,8 @@ api-fluig-python/
 │   │   ├── auth_fluig.py            # Autenticação OAuth1 (legado)
 │   │   └── auth_google_drive.py    # Autenticação Google Drive
 │   ├── fluig/
-│   │   └── fluig_core.py            # Classe principal para interação com Fluig
-│   ├── fluig_requests/
-│   │   └── requests.py              # Funções auxiliares para requisições HTTP
+│   │   ├── fluig_core.py            # Classe principal para interação com Fluig
+│   │   └── fluig_requests.py        # Classe para requisições HTTP ao Fluig
 │   ├── web/
 │   │   ├── web_auth_manager.py      # Gerenciador centralizado de autenticação
 │   │   ├── web_cookies.py           # Gerenciamento de cookies (salvar, carregar, validar)
@@ -648,6 +648,40 @@ curl -X POST "http://127.0.0.1:3000/api/v1/fluig/prd/datasets/buscar" \
 ```
 
 
+## Monitoramento de Emails (Gmail Monitor)
+
+O projeto inclui um módulo completo de monitoramento de emails que substitui o Apps Script do Google. Este módulo:
+
+- Monitora automaticamente emails não lidos no Gmail
+- Valida remetentes (domínio UISA ou emails permitidos)
+- Processa anexos e salva no Google Drive
+- Busca telefone do remetente no diretório do Google Workspace
+- Abre chamados automaticamente via API
+- Envia emails de confirmação aos usuários
+
+### Configuração
+
+Para configurar o monitoramento de emails, consulte a documentação completa em:
+**[docs/GMAIL_MONITOR_SETUP.md](docs/GMAIL_MONITOR_SETUP.md)**
+
+### Funcionalidades
+
+- ✅ Monitoramento automático em background
+- ✅ Processamento de anexos
+- ✅ Validação de segurança de emails
+- ✅ Suporte a emails UISA
+- ✅ Integração com Google Drive e People API
+- ✅ Logs detalhados de todas as operações
+
+### Desativar Monitoramento
+
+O monitoramento é iniciado automaticamente com a aplicação. Para desativar, comente as linhas no `main.py`:
+
+```python
+# iniciar_monitoramento_gmail()
+# parar_monitoramento_gmail()
+```
+
 ## Logs
 
 ### Níveis de Log
@@ -673,3 +707,7 @@ Os logs são salvos automaticamente na pasta `logs/` na raiz do projeto.
 
 
 Para ver o histórico completo de versões, consulte o arquivo - `version`.
+
+## 📞 Suporte
+
+Deus lhe ajude.

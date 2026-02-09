@@ -10,6 +10,11 @@ from src.web.web_auth_manager import (
     iniciar_login_automatico, 
     parar_login_automatico,
 )
+from src.gmail_monitor.background_service import (
+    iniciar_monitoramento_gmail,
+    parar_monitoramento_gmail,
+)
+from src.modelo_dados.modelo_settings import ConfigEnvSetings
 
 import uvicorn
 
@@ -20,8 +25,26 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Iniciando renovação automática de cookies do Fluig (intervalo: 20 minutos)...")
     iniciar_login_automatico()
+    
+    # Verifica se o monitoramento de emails está habilitado
+    gmail_enabled = getattr(ConfigEnvSetings, 'GMAIL_MONITOR_ENABLED', 'true').lower()
+    if gmail_enabled in ('true', '1', 'yes'):
+        logger.info("Iniciando monitoramento de emails do Gmail...")
+        iniciar_monitoramento_gmail()
+    else:
+        logger.info("Monitoramento de emails do Gmail desabilitado (GMAIL_MONITOR_ENABLED=false)")
+    
     yield
+    
     # Shutdown
+    # Verifica se o monitoramento de emails está habilitado antes de parar
+    gmail_enabled = getattr(ConfigEnvSetings, 'GMAIL_MONITOR_ENABLED', 'true').lower()
+    if gmail_enabled in ('true', '1', 'yes'):
+        logger.info("Parando monitoramento de emails...")
+        parar_monitoramento_gmail()
+    else:
+        logger.info("Monitoramento de emails já estava desabilitado")
+    
     logger.info("Parando renovação automática de cookies...")
     parar_login_automatico()
 
@@ -55,7 +78,7 @@ if __name__ == "__main__":
     print("-"*60)
     uvicorn.run(
         "main:app",
-        host="127.0.0.1",
+        host="localhost",
         port=3000,
         reload=True,
         log_level="info"

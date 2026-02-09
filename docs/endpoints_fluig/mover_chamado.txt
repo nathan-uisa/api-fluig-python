@@ -1,0 +1,55 @@
+URL = https://fluig.uisa.com.br/process-management/api/v2/requests/691738/move
+
+CURL URL = curl -X POST "https://fluig.uisa.com.br/process-management/api/v2/requests/691738/move" -H "accept: application/json; charset=UTF-8" -H "Content-Type: application/json; charset=UTF-8" -d "{ \"movementSequence\": 3, \"assignee\": \"Pool:Group:ITSM_TODOS\", \"targetState\": 9, \"targetAssignee\": \"f91b4d01ddc24241b2e1915657bebcd4\", \"subProcessTargetState\": 0, \"comment\": \"Movimentação via API - Correção de Sequence\", \"asManager\": true, \"formFields\": { \"ds_servico\":\"Acompanhamento Técnico\", \"status_chamado\": \"Aberto\", \"ds_item_servico\":\"SERVIÇOS DE SUPORTE TÉCNICO\", \"ds_grupo_servico\":\"SERVIÇOS DE SUPORTE TÉCNICO\", \"urg_alta\":\"HORÁRIO ADMINISTRATIVO\", \"ds_resp_servico\":\"Rodrigo da Silva Dias\", \"urg_baixa\":\"NA\", \"ds_urgencia\": \"Média\", \"urg_media\":\"HORÁRIO ADMINISTRATIVO\", \"ds_equipe_resp\":\"ITSM - ATENDIMENTO SUPORTE TÉCNICO\", \"ds_tipo\":\"Tarefa\" }}"
+
+
+
+payload :
+{
+  "movementSequence": 3,
+  "assignee": "Pool:Group:ITSM_TODOS",
+  "targetState": 9,
+  "targetAssignee": "f91b4d01ddc24241b2e1915657bebcd4",
+  "subProcessTargetState": 0,
+  "comment": "Movimentação via API - Correção de Sequence",
+  "asManager": true,
+  "formFields": {
+    "ds_servico":"Acompanhamento Técnico",
+    "status_chamado": "Aberto",
+    "ds_item_servico":"SERVIÇOS DE SUPORTE TÉCNICO",
+    "ds_grupo_servico":"SERVIÇOS DE SUPORTE TÉCNICO",
+    "urg_alta":"HORÁRIO ADMINISTRATIVO",
+    "ds_resp_servico":"Rodrigo da Silva Dias",
+    "urg_baixa":"NA",
+     "ds_urgencia": "Média",
+    "urg_media":"HORÁRIO ADMINISTRATIVO",
+    "ds_equipe_resp":"ITSM - ATENDIMENTO SUPORTE TÉCNICO",
+    "ds_tipo":"Tarefa"
+  }
+}
+
+resposta {
+  "possibleAssignees": null,
+  "toShowPossibleAssignees": false,
+  "jointActivity": false,
+  "reachedPercentageForJointActivity": null,
+  "highestTaskForJointActivity": null,
+  "highestAssigneeForJointActivity": null,
+  "nextState": 33,
+  "nextGateway": null,
+  "nextStateName": null,
+  "gatewayComment": null,
+  "gatewayCondition": 0,
+  "useManagerAssignees": false,
+  "conversionLog": null,
+  "conversionSequence": null,
+  "cardId": 1320501,
+  "cardVersion": 2000,
+  "subProcessRequests": [],
+  "processId": "Abertura de Chamados",
+  "processVersion": 58,
+  "processInstanceId": 691738,
+  "_expandables": [
+    "possibleAssignees"
+  ]
+}

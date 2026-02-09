@@ -11,12 +11,14 @@ from src.web.web_cookies import (
 from src.modelo_dados.modelo_settings import ConfigEnvSetings
 
 # Configuração de renovação de cookies
-INTERVALO_RENOVACAO = 20 * 60  # 20 minutos em segundos
+INTERVALO_RENOVACAO = 10 * 60  # 10 minutos em segundos
 
 # Controle das threads
 _lock = threading.Lock()
 _thread_renovacao: Optional[threading.Thread] = None
 _parar_renovacao = threading.Event()
+_login_em_andamento = {}  # Dicionário para rastrear logins em andamento por usuário
+_lock_login = threading.Lock()  # Lock para proteger logins simultâneos
 
 
 def _obter_url_base(ambiente: str) -> str:
@@ -68,29 +70,44 @@ def _fazer_login_thread(ambiente: str, usuario: str, senha: str):
     """
     Executa o login em uma thread separada para não bloquear o processo principal
     """
+    chave_login = f"{ambiente}_{usuario}"
+    
+    # Verifica se já existe um login em andamento para este usuário
+    with _lock_login:
+        if chave_login in _login_em_andamento and _login_em_andamento[chave_login]:
+            logger.warning(f"[_fazer_login_thread] Login já em andamento para {usuario} no ambiente {ambiente}. Pulando...")
+            return
+        _login_em_andamento[chave_login] = True
+    
     try:
-        realizar_login(ambiente, usuario, senha)
+        logger.info(f"[_fazer_login_thread] Iniciando login em thread para {usuario} no ambiente {ambiente}")
+        sucesso = realizar_login(ambiente, usuario, senha)
+        if sucesso:
+            logger.info(f"[_fazer_login_thread] Login concluído com sucesso para {usuario}")
+        else:
+            logger.error(f"[_fazer_login_thread] Login falhou para {usuario}")
     except Exception as e:
         logger.error(f"[_fazer_login_thread] Erro: {str(e)}")
+        import traceback
+        logger.error(f"[_fazer_login_thread] Traceback: {traceback.format_exc()}")
+    finally:
+        # Remove a flag de login em andamento
+        with _lock_login:
+            _login_em_andamento[chave_login] = False
 
 
 def _renovar_cookies_periodicamente():
     """
-    Thread que renova cookies a cada 20 minutos para todos os usuários configurados
-    (FLUIG_ADMIN_USER e FLUIG_USER_NAME)
+    Thread que renova cookies a cada 10 minutos para o usuário admin configurado
+    (FLUIG_ADMIN_USER)
     """
     logger.info("[_renovar_cookies_periodicamente] Thread de renovação de cookies iniciada")
     
-    # Lista de usuários a serem monitorados
+    # Lista de usuários a serem monitorados (apenas FLUIG_ADMIN_USER)
     usuarios = [
         {
             'usuario': ConfigEnvSetings.FLUIG_ADMIN_USER,
             'senha': ConfigEnvSetings.FLUIG_ADMIN_PASS,
-            'ambiente': 'PRD'
-        },
-        {
-            'usuario': ConfigEnvSetings.FLUIG_USER_NAME,
-            'senha': ConfigEnvSetings.FLUIG_USER_PASS,
             'ambiente': 'PRD'
         }
     ]
@@ -107,6 +124,13 @@ def _renovar_cookies_periodicamente():
                 senha = config['senha']
                 ambiente = config['ambiente']
                 
+                # Verifica se já existe login em andamento antes de iniciar novo
+                chave_login = f"{ambiente}_{usuario}"
+                with _lock_login:
+                    if chave_login in _login_em_andamento and _login_em_andamento[chave_login]:
+                        logger.info(f"[_renovar_cookies_periodicamente] Login já em andamento para {usuario}, aguardando...")
+                        continue
+                
                 logger.info(f"[_renovar_cookies_periodicamente] Renovando cookies para {usuario}...")
                 
                 # Executa login em thread separada para não bloquear
@@ -117,14 +141,20 @@ def _renovar_cookies_periodicamente():
                 )
                 thread_login.start()
                 threads_login.append(thread_login)
+                
+                # Pequeno delay entre inícios de threads para evitar sobrecarga
+                import time
+                time.sleep(2)
             
-            # Aguarda todas as threads de login completarem (timeout de 2 minutos cada)
+            # Aguarda todas as threads de login completarem (timeout de 5 minutos cada)
+            # Timeout aumentado para ambiente Docker/Cloud Run que pode ser mais lento
             for thread in threads_login:
-                thread.join(timeout=120)
+                thread.join(timeout=300)  # 5 minutos
                 if thread.is_alive():
-                    logger.warning(f"[_renovar_cookies_periodicamente] Login {thread.name} excedeu o timeout")
+                    logger.warning(f"[_renovar_cookies_periodicamente] Login {thread.name} excedeu o timeout de 5 minutos")
+                    # Não mata a thread, apenas registra o warning - ela pode completar depois
             
-            # Aguarda próximo ciclo de renovação (20 minutos)
+            # Aguarda próximo ciclo de renovação (10 minutos)
             logger.info(f"[_renovar_cookies_periodicamente] Próxima renovação em {INTERVALO_RENOVACAO // 60} minutos")
             _parar_renovacao.wait(timeout=INTERVALO_RENOVACAO)
             
@@ -145,8 +175,12 @@ def iniciar_login_automatico():
     
     with _lock:
         if _thread_renovacao is not None and _thread_renovacao.is_alive():
-            logger.debug("[iniciar_login_automatico] Thread já está em execução")
+            logger.warning("[iniciar_login_automatico] Thread já está em execução. Ignorando nova inicialização.")
             return
+        
+        # Limpa flags de login em andamento
+        with _lock_login:
+            _login_em_andamento.clear()
         
         _parar_renovacao.clear()
         _thread_renovacao = threading.Thread(
@@ -155,7 +189,7 @@ def iniciar_login_automatico():
             daemon=True
         )
         _thread_renovacao.start()
-        logger.info("[iniciar_login_automatico] Renovação automática de cookies iniciada (intervalo: 20 minutos)")
+        logger.info("[iniciar_login_automatico] Renovação automática de cookies iniciada (intervalo: 10 minutos)")
 
 
 def parar_login_automatico():

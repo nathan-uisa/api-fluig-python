@@ -1,0 +1,184 @@
+
+CABEÇALHO:
+
+GET /ecm/api/rest/ecm/centralTasks/getTasks/open/566a4fc82d694195ae11cf9e8e0d1a90?filter=%7B%22id%22:0,%22name%22:%22%22,%22isActive%22:false,%22isModified%22:false,%22fields%22:%5B%5D,%22searchField%22:%22%22,%22searchValue%22:%22%22,%22order%22:%7B%7D,%22firstValue%22:0,%22pageDirection%22:%22forward%22%7D&offset=0&_search=false&nd=1770385876022&rows=30&page=1&sidx=processInstanceId&sord=asc&_=1770385851489 HTTP/1.1
+Accept: application/json, text/javascript, */*; q=0.01
+Accept-Encoding: gzip, deflate, br, zstd
+Accept-Language: pt-BR,pt;q=0.9
+Connection: keep-alive
+Content-Type: application/json; charset=UTF-8
+Cookie: _ga=GA1.1.1556271645.1770305546; JSESSIONIDSSO=R43wWSyQDK4OeBCCGtn6PYaWYQrYk6uYNIF0-LjK; JSESSIONID="Dv3sOlx2_mHZjPeKAd5XRT8XdyFfoKVlqPd8X3CV.master:fluig1"; _ga_F0FT6D1NQG=GS2.1.s1770385812$o4$g1$t1770385851$j21$l0$h0; jwt.token=eyJraWQiOiIxMzA5OTY4Yy01NGI2LTRiMWEtOWNjYS01OWY5M2FjNjU0NWUiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJpbmZyYS5hdXRvbWFjYW8udWlzYS5jb20uYnIuMSIsInJvbGUiOiJ1c2VyLGFkbWluIiwidGVuYW50IjoxLCJ1c2VyVGVuYW50SWQiOjE3MzAsInVzZXJUeXBlIjowLCJ1c2VyVVVJRCI6ImQ1ZmZkMzIxLTFkZDktNDgxNi04ZWMzLTU2NzI2MTVkZGIxMCIsInRlbmFudFVVSUQiOiIxMzA5OTY4Yy01NGI2LTRiMWEtOWNjYS01OWY5M2FjNjU0NWUiLCJsYXN0VXBkYXRlRGF0ZSI6MTc2NDk0MjYzNjU5NiwidXNlclRpbWVab25lIjoiQW1lcmljYS9DdWlhYmEiLCJleHAiOjE3NzAzODcwODMsImlhdCI6MTc3MDM4NTg4MywiYXVkIjoiZmx1aWdfYXV0aGVudGljYXRvcl9yZXNvdXJjZSJ9.VxOG-JKjtoS-WgP8MsG8lBLV-e4xaOwSlweCSMexx9ph9ht8PmOSPawTwLp0ip8xMzErlAszUhw1w9wZEu0kwyR9NL_cym9cdWiQ8fr8wqrgsS6IN2B6ehK3-Af2FF_jIDcfkFP_GrdUr5XTRO912aTcMhk9yTO4t6dsix6DeboOEnWPVyLwfso-23X5j8PEeUeXwemwiYraefLps8uIGH5GJNbzQKYtBfNAKZnjJhsqAlkoFAXWYgH-vBBSsFWKK0gcTVQwbH0lChu-npknQA1a4iUNMnuKBjhnqH0qv2-PG-GkKnWrHOXFY7ux3SPOpPA5zRK3-sgqczhqgSDzmQ
+Host: fluig.uisa.com.br
+Referer: https://fluig.uisa.com.br/portal/p/1/pagecentraltask
+Sec-Fetch-Dest: empty
+Sec-Fetch-Mode: cors
+Sec-Fetch-Site: same-origin
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36
+X-Requested-With: XMLHttpRequest
+sec-ch-ua: "Not(A:Brand";v="8", "Chromium";v="144", "Google Chrome";v="144"
+sec-ch-ua-mobile: ?0
+sec-ch-ua-platform: "Windows"
+
+
+
+CABEÇALHO RESPOSTA:
+
+HTTP/1.1 200 OK
+Expires: 0
+Cache-Control: no-cache, no-transform, no-store
+Access-Control-Allow-Headers: accept, authorization, content-type, x-requested-with
+Pragma: no-cache
+X-Frame-Options: SAMEORIGIN
+Date: Fri, 06 Feb 2026 13:51:23 GMT
+Connection: keep-alive
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Credentials: true
+Content-Type: application/json
+Content-Length: 3091
+Access-Control-Max-Age: 1
+Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT
+
+
+RESPOSTA:
+{
+    "totalpages": 1,
+    "totalrecords": "31",
+    "currpage": 1,
+    "invdata": [
+        {
+            "url": null,
+            "code": null,
+            "processInstanceId": 656304,
+            "processId": "Abertura de Chamados",
+            "version": 57,
+            "processDescription": "Abertura de Chamado",
+            "requesterId": "processosautomatizadosdeinfra",
+            "requesterName": "Infra Automação",
+            "stateDescription": "Aguardando Classificação",
+            "colleagueName": "Infra Automação",
+            "dateExpires": "Sem prazo definido",
+            "startDateProcess": 1763401924348,
+            "attachDescription": "17 Novembro, 2025 - Infra Automação",
+            "movementSequence": 3,
+            "expired": false,
+            "threadSequence": 0,
+            "know": true,
+            "processKey": "656304.3",
+            "cancelable": false,
+            "slaTotalRuntime": 0,
+            "slaStatus": 0,
+            "slaDeadline": null,
+            "slaRemaningDays": 0,
+            "slaRemaningHours": 0,
+            "slaRemaningMinutes": 0,
+            "fieldValue1": null,
+            "fieldValue2": null,
+            "fieldValue3": null,
+            "fieldValue4": null,
+            "fieldValue5": null,
+            "fieldValue6": null,
+            "fieldValue7": null,
+            "fieldValue8": null,
+            "fieldValue9": null,
+            "fieldValue10": null,
+            "fieldValue11": null,
+            "fieldValue12": null,
+            "fieldValue13": null,
+            "fieldValue14": null,
+            "fieldValue15": null,
+            "approachingExpiration": false,
+            "companyId": 1,
+            "processDiagram": null,
+            "hasParallel": null,
+            "stateSequence": 5,
+            "attachId": 1139863,
+            "attachVersion": 1000,
+            "colleaguesManager": null,
+            "forecastedEffortType": 0,
+            "counterSign": false,
+            "statusConsult": null,
+            "formId": 0,
+            "formDescription": null,
+            "formVersion": 0,
+            "formHtml": null,
+            "processInstruction": null,
+            "active": null,
+            "currentStates": null,
+            "allowComplements": null,
+            "complementsLevel": null,
+            "timeZoneUser": null,
+            "attachments": 3,
+            "slaStatusString": "No prazo",
+            "slaTotalRuntimeString": "00:00:00",
+            "slaRemainingTime": "Prazo não definido"
+        },
+        {
+            "url": null,
+            "code": null,
+            "processInstanceId": 657984,
+            "processId": "Abertura de Chamados",
+            "version": 57,
+            "processDescription": "Abertura de Chamado",
+            "requesterId": "processosautomatizadosdeinfra",
+            "requesterName": "Infra Automação",
+            "stateDescription": "Aguardando Classificação",
+            "colleagueName": "Infra Automação",
+            "dateExpires": "Sem prazo definido",
+            "startDateProcess": 1763597486364,
+            "attachDescription": "19 Novembro, 2025 - Infra Automação",
+            "movementSequence": 3,
+            "expired": false,
+            "threadSequence": 0,
+            "know": true,
+            "processKey": "657984.3",
+            "cancelable": false,
+            "slaTotalRuntime": 0,
+            "slaStatus": 0,
+            "slaDeadline": null,
+            "slaRemaningDays": 0,
+            "slaRemaningHours": 0,
+            "slaRemaningMinutes": 0,
+            "fieldValue1": null,
+            "fieldValue2": null,
+            "fieldValue3": null,
+            "fieldValue4": null,
+            "fieldValue5": null,
+            "fieldValue6": null,
+            "fieldValue7": null,
+            "fieldValue8": null,
+            "fieldValue9": null,
+            "fieldValue10": null,
+            "fieldValue11": null,
+            "fieldValue12": null,
+            "fieldValue13": null,
+            "fieldValue14": null,
+            "fieldValue15": null,
+            "approachingExpiration": false,
+            "companyId": 1,
+            "processDiagram": null,
+            "hasParallel": null,
+            "stateSequence": 5,
+            "attachId": 1142999,
+            "attachVersion": 3000,
+            "colleaguesManager": null,
+            "forecastedEffortType": 0,
+            "counterSign": false,
+            "statusConsult": null,
+            "formId": 0,
+            "formDescription": null,
+            "formVersion": 0,
+            "formHtml": null,
+            "processInstruction": null,
+            "active": null,
+            "currentStates": null,
+            "allowComplements": null,
+            "complementsLevel": null,
+            "timeZoneUser": null,
+            "attachments": 0,
+            "slaStatusString": "No prazo",
+            "slaTotalRuntimeString": "00:00:00",
+            "slaRemainingTime": "Prazo não definido"
+        }
+    ],
+    "genericObject": 0
+}

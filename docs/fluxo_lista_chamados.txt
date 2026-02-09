@@ -1,0 +1,7 @@
+Obtém o email do usuário logado
+busca o coolleagueid /api/v1/fluig/{ambiente}/datasets/buscar pelo email do usuário
+usa o colleagueId em colleague_id da função listar_chamados_fila para obter a lista de chamados abertos
+obtendo o número dos chamados (ID: 629491) busca as informações do chamado pela função de detalhar chamados 
+com todos os dados do chamado mostra no canto esquerdo da página de abertura de chamados 
+
+

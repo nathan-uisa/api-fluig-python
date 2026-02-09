@@ -1,10 +1,12 @@
-from typing import Optional
+from typing import Optional, Dict, Any, List
+from urllib.parse import urlparse
+import json
 from src.modelo_dados.modelo_settings import ConfigEnvSetings
 from src.modelo_dados.modelos_fluig import DatasetConfig
 from src.utilitarios_centrais.logger import logger
-from src.fluig_requests.requests import RequestsFluig
+from src.fluig.fluig_requests import RequestsFluig
 from src.web.web_cookies import carregar_cookies, cookies_para_requests
-from src.web.web_auth_manager import garantir_autenticacao
+from src.web.web_auth_manager import garantir_autenticacao, obter_cookies_validos
 import requests
 import io
 
@@ -152,14 +154,14 @@ class FluigCore():
         logger.info(f"[AberturaDeChamado] Iniciando abertura de chamado - Tipo: {tipo_chamado}, UsuarioAtendido: {usuario_atendido}")
         url = self.url_base + "/process-management/api/v2/processes/Abertura%20de%20Chamados/start"
         
-        # Obtém autenticação baseado no ambiente
+        # Obtém autenticação baseado no ambiente (usa apenas FLUIG_ADMIN_USER)
         if self.ambiente == "QLD":
-            usuario = ConfigEnvSetings.FLUIG_USER_NAME_QLD
-            senha = ConfigEnvSetings.FLUIG_USER_PASS_QLD
+            usuario = ConfigEnvSetings.FLUIG_ADMIN_USER
+            senha = ConfigEnvSetings.FLUIG_ADMIN_PASS
             logger.debug(f"[AberturaDeChamado] Usando credenciais QLD - Usuário: {usuario}")
         else:
-            usuario = ConfigEnvSetings.FLUIG_USER_NAME
-            senha = ConfigEnvSetings.FLUIG_USER_PASS
+            usuario = ConfigEnvSetings.FLUIG_ADMIN_USER
+            senha = ConfigEnvSetings.FLUIG_ADMIN_PASS
             logger.debug(f"[AberturaDeChamado] Usando credenciais PRD - Usuário: {usuario}")
         
         sucesso, cookies_list = garantir_autenticacao(ambiente=self.ambiente, usuario=usuario, senha=senha)
@@ -207,7 +209,7 @@ class FluigCore():
         """
         Faz upload de um arquivo no Fluig usando o endpoint /ecm/upload
         
-        IMPORTANTE: Usa apenas FLUIG_USER_NAME (NÃO usar FLUIG_ADMIN_USER)
+        IMPORTANTE: Usa apenas FLUIG_ADMIN_USER
         
         Args:
             arquivo_bytes: Conteúdo do arquivo em bytes
@@ -220,13 +222,13 @@ class FluigCore():
         try:
             logger.info(f"[upload_arquivo_fluig] Iniciando upload do arquivo: {nome_arquivo}")
             
-            # Obtém autenticação - USA APENAS FLUIG_USER_NAME (NÃO FLUIG_ADMIN_USER)
+            # Obtém autenticação - USA APENAS FLUIG_ADMIN_USER
             if self.ambiente == "QLD":
-                usuario = ConfigEnvSetings.FLUIG_USER_NAME_QLD
-                senha = ConfigEnvSetings.FLUIG_USER_PASS_QLD
+                usuario = ConfigEnvSetings.FLUIG_ADMIN_USER
+                senha = ConfigEnvSetings.FLUIG_ADMIN_PASS
             else:
-                usuario = ConfigEnvSetings.FLUIG_USER_NAME
-                senha = ConfigEnvSetings.FLUIG_USER_PASS
+                usuario = ConfigEnvSetings.FLUIG_ADMIN_USER
+                senha = ConfigEnvSetings.FLUIG_ADMIN_PASS
             
             sucesso, cookies_list = garantir_autenticacao(ambiente=self.ambiente, usuario=usuario, senha=senha)
             if not sucesso or not cookies_list:
@@ -308,7 +310,7 @@ class FluigCore():
         Anexa um arquivo a um chamado usando o endpoint saveAttachments
         
         IMPORTANTE: 
-        - Usa FLUIG_USER_NAME para autenticação (NÃO usar FLUIG_ADMIN_USER)
+        - Usa FLUIG_ADMIN_USER para autenticação
         - Usa ADMIN_COLLEAGUE_ID para taskUserId e colleagueId no payload
         - attachedUser é fixo: "Infra Automação"
         
@@ -330,13 +332,13 @@ class FluigCore():
                 logger.error("[anexar_arquivo_chamado] ADMIN_COLLEAGUE_ID não configurado")
                 return False
             
-            # Obtém autenticação - USA APENAS FLUIG_USER_NAME (NÃO FLUIG_ADMIN_USER)
+            # Obtém autenticação - USA APENAS FLUIG_ADMIN_USER
             if self.ambiente == "QLD":
-                usuario = ConfigEnvSetings.FLUIG_USER_NAME_QLD
-                senha = ConfigEnvSetings.FLUIG_USER_PASS_QLD
+                usuario = ConfigEnvSetings.FLUIG_ADMIN_USER
+                senha = ConfigEnvSetings.FLUIG_ADMIN_PASS
             else:
-                usuario = ConfigEnvSetings.FLUIG_USER_NAME
-                senha = ConfigEnvSetings.FLUIG_USER_PASS
+                usuario = ConfigEnvSetings.FLUIG_ADMIN_USER
+                senha = ConfigEnvSetings.FLUIG_ADMIN_PASS
             
             sucesso, cookies_list = garantir_autenticacao(ambiente=self.ambiente, usuario=usuario, senha=senha)
             if not sucesso or not cookies_list:
@@ -415,3 +417,175 @@ class FluigCore():
             import traceback
             logger.debug(f"[anexar_arquivo_chamado] Traceback: {traceback.format_exc()}")
             return False
+
+    def listar_chamados_tasks(
+        self,
+        assignee: Optional[str] = None,
+        status: str = "NOT_COMPLETED",
+        sla_status: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 1000,
+        order: str = "processInstanceId",
+        cookies_list: Optional[List[Dict]] = None,
+        usuario: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Lista chamados (tasks) usando o endpoint v2 /process-management/api/v2/tasks
+        
+        IMPORTANTE: Usa exclusivamente autenticação OAuth 1.0 (CK, CS, TK, TS)
+        
+        Args:
+            assignee: ID do colleague (opcional, usa USER_COLLEAGUE_ID se não fornecido)
+            status: Status das tarefas (padrão: 'NOT_COMPLETED')
+            sla_status: Status do SLA (opcional, None para todos)
+            page: Número da página (padrão: 1)
+            page_size: Quantidade de registros por página (padrão: 1000)
+            order: Campo para ordenação (padrão: 'processInstanceId')
+            cookies_list: DEPRECATED - não é mais usado, mantido apenas para compatibilidade
+            usuario: DEPRECATED - não é mais usado, mantido apenas para compatibilidade
+        
+        Returns:
+            Dados JSON com lista de chamados (tasks) ou None
+        """
+        try:
+            # Obtém assignee se não fornecido
+            if not assignee:
+                if self.ambiente.upper() == "QLD":
+                    assignee = ConfigEnvSetings.USER_COLLEAGUE_ID_QLD
+                else:
+                    assignee = ConfigEnvSetings.USER_COLLEAGUE_ID
+                    
+            if not assignee:
+                logger.error(f"[listar_chamados_tasks] assignee não configurado para ambiente {self.ambiente}")
+                return None
+            
+            logger.info(f"[listar_chamados_tasks] Usando assignee: {assignee} para ambiente {self.ambiente}")
+            logger.info(f"[listar_chamados_tasks] Usando autenticação OAuth 1.0 (CK, CS, TK, TS)")
+            
+            # Usa URL base já configurada na instância
+            parsed_url = urlparse(self.url_base)
+            base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+            
+            # Monta URL do endpoint v2
+            url = f"{base_url}/process-management/api/v2/tasks"
+            
+            # Parâmetros da query
+            params = {
+                'assignee': assignee,
+                'status': status,
+                'page': page,
+                'pageSize': page_size,
+                'order': order
+            }
+            
+            # Adiciona slaStatus apenas se fornecido
+            if sla_status:
+                params['slaStatus'] = sla_status
+            
+            logger.info(f"[listar_chamados_tasks] Fazendo requisição para {self.ambiente}...")
+            logger.debug(f"[listar_chamados_tasks] URL: {url}")
+            logger.debug(f"[listar_chamados_tasks] Params: {params}")
+            
+            # Usa autenticação OAuth 1.0 através do RequestsFluig
+            response = self.requests.RequestTipoGET(url, params)
+            
+            logger.info(f"[listar_chamados_tasks] Status Code: {response.status_code}")
+            
+            if response.status_code == 200:
+                try:
+                    data = response.json()
+                    items = data.get('items', [])
+                    has_next = data.get('hasNext', False)
+                    logger.info(f"[listar_chamados_tasks] {len(items)} chamado(s) encontrado(s), hasNext: {has_next}")
+                    return data
+                except json.JSONDecodeError as e:
+                    logger.error(f"[listar_chamados_tasks] Erro ao decodificar JSON: {str(e)}")
+                    logger.debug(f"[listar_chamados_tasks] Resposta: {response.text[:500]}")
+                    return None
+            else:
+                logger.error(f"[listar_chamados_tasks] Erro na requisição - Status: {response.status_code}")
+                logger.debug(f"[listar_chamados_tasks] Resposta: {response.text[:500]}")
+                if response.status_code == 401:
+                    logger.error("[listar_chamados_tasks] Erro de autenticação. Verifique as credenciais OAuth 1.0 (CK, CS, TK, TS)")
+                return None
+                
+        except Exception as e:
+            logger.error(f"[listar_chamados_tasks] Erro ao listar chamados: {str(e)}")
+            import traceback
+            logger.debug(f"[listar_chamados_tasks] Traceback: {traceback.format_exc()}")
+            return None
+
+    def obter_detalhes_chamado(
+        self,
+        process_instance_id: int,
+        task_user_id: Optional[str] = None,
+        cookies_list: Optional[List[Dict]] = None,
+        usuario: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Obtém detalhes de um chamado do Fluig usando o endpoint oficial da API v2
+        
+        Args:
+            process_instance_id: ID da instância do processo (número do chamado)
+            task_user_id: (DEPRECADO - não usado mais, mantido para compatibilidade)
+            cookies_list: (DEPRECADO - não usado mais, mantido para compatibilidade)
+            usuario: (DEPRECADO - não usado mais, mantido para compatibilidade)
+        
+        Returns:
+            Dados JSON com detalhes do chamado ou None
+        """
+        try:
+            # Usa URL base já configurada na instância
+            parsed_url = urlparse(self.url_base)
+            base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+            
+            # Endpoint oficial da API v2 do Fluig
+            url = f"{base_url}/process-management/api/v2/requests/{process_instance_id}"
+            
+            # Parâmetros da query string
+            parametros = {
+                "expand": "formFields"
+            }
+            
+            logger.info(f"[obter_detalhes_chamado] Buscando detalhes do chamado {process_instance_id}...")
+            logger.debug(f"[obter_detalhes_chamado] URL: {url}")
+            
+            # Usa autenticação OAuth1 através do RequestsFluig
+            response = self.requests.RequestTipoGET(url, parametros)
+            
+            logger.info(f"[obter_detalhes_chamado] Status: {response.status_code}")
+            
+            if response.status_code == 200:
+                try:
+                    data = response.json()
+                    
+                    # Simplifica formFields: transforma array de {field, value} em dicionário simples
+                    if "formFields" in data and isinstance(data["formFields"], list):
+                        form_fields_dict = {}
+                        for item in data["formFields"]:
+                            if isinstance(item, dict) and "field" in item and "value" in item:
+                                form_fields_dict[item["field"]] = item["value"]
+                        data["formFields"] = form_fields_dict
+                    
+                    logger.info(f"[obter_detalhes_chamado] Detalhes obtidos com sucesso")
+                    return data
+                except json.JSONDecodeError as e:
+                    logger.error(f"[obter_detalhes_chamado] Erro ao decodificar JSON: {str(e)}")
+                    logger.debug(f"[obter_detalhes_chamado] Resposta: {response.text[:500]}")
+                    return None
+            else:
+                logger.error(f"[obter_detalhes_chamado] Erro HTTP {response.status_code}")
+                logger.error(f"[obter_detalhes_chamado] Resposta do servidor: {response.text[:500]}")
+                
+                if response.status_code in [401, 403]:
+                    logger.warning("[obter_detalhes_chamado] Erro de autenticação. Verifique as credenciais OAuth1 (CK, CS, TK, TS)")
+                elif response.status_code == 404:
+                    logger.warning(f"[obter_detalhes_chamado] Chamado {process_instance_id} não encontrado")
+                elif response.status_code == 500:
+                    logger.warning(f"[obter_detalhes_chamado] Erro interno do servidor. Verifique se o chamado existe")
+                
+                return None
+                
+        except Exception as e:
+            logger.error(f"[obter_detalhes_chamado] Erro inesperado: {str(e)}")
+            return None

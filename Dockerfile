@@ -21,6 +21,11 @@ RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd6
     rm google-chrome-stable_current_amd64.deb && \
     rm -rf /var/lib/apt/lists/*
 
+# 3. Configurar variáveis de ambiente para Chrome em containers
+ENV CHROME_BIN=/usr/bin/google-chrome
+ENV CHROMEDRIVER_PATH=/usr/local/bin/chromedriver
+ENV DISPLAY=:99
+
 # Definir diretório de trabalho
 WORKDIR /app
 
@@ -37,5 +42,6 @@ COPY . .
 EXPOSE ${PORT:-3000}
 
 # Comando para executar a aplicação usando a porta definida pelo Cloud Run
+# IMPORTANTE: Use 0.0.0.0 para tornar acessível do host, não localhost
 CMD sh -c "uvicorn main:app --host 0.0.0.0 --port ${PORT:-3000}"
 
