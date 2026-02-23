@@ -476,3 +476,342 @@ Versão 5.3.0
     * Margens ajustadas: margin-left: 360px e margin-right: 360px
     * Largura calculada: width: calc(100% - 720px)
     * Responsividade atualizada para dispositivos móveis (ambas as sidebars)
+
+Versão 6.2.2
+  IMPLEMENTAÇÕES:
+  - Migração completa da abertura de chamados para OAuth 1.0:
+    * Função AberturaDeChamado() migrada para usar exclusivamente OAuth 1.0
+    * Removida dependência de cookies e login via browser na abertura de chamados 
+    * PayloadChamadoClassificado() migrado para usar OAuth 1.0 em todas as operações
+    * PayloadChamadoNormal() já utilizava OAuth 1.0 (sem alterações necessárias)
+    * obter_detalhes_servico_fluig() migrado para usar OAuth 1.0 via RequestsFluig
+    * Todas as rotas de abertura de chamados agora funcionam sem cookies
+  - Nova variável de ambiente para controle de login via browser:
+    * BROWSER_LOGIN_ENABLED - Habilita/desabilita login via browser em todo o projeto
+    * Valores aceitos: "true", "True", "1" (habilitado) ou "false", "False", "0" (desabilitado)
+    * Padrão: "true" (habilitado)
+    * Quando desabilitado, todas as funções de login via browser retornam erro
+    * Funções afetadas: fazer_login_fluig(), realizar_login(), garantir_autenticacao(), iniciar_login_automatico()
+    * Útil para ambientes onde apenas OAuth 1.0 é usado e não há necessidade de cookies
+  - Teste para abertura de chamados com OAuth 1.0:
+    * Novo teste test_abrir_chamado_oauth.py em tests/fluig/
+    * Testa abertura de chamados usando endpoint /v2/processes/{processId}/start
+    * Utiliza exclusivamente autenticação OAuth 1.0 (CK, CS, TK, TS)
+    * Payload de teste configurável para validação
+  - Atualizações nas rotas de serviços:
+    * ObterDetalhesServico() migrado para usar OAuth 1.0 (removida dependência de cookies)
+    * buscar_detalhes_servico() no webapp migrado para usar OAuth 1.0
+    * Removidos imports e chamadas de obter_cookies_validos() das rotas de serviços
+  - Melhorias na arquitetura:
+    * Separação clara entre autenticação OAuth 1.0 e autenticação via cookies
+    * Funções de abertura de chamados agora são completamente independentes de browser/login
+    * Maior confiabilidade e performance (não depende de Selenium/ChromeDriver)
+    * Redução de dependências externas para operações críticas
+
+Versão 6.5.0
+  IMPLEMENTAÇÕES:
+  - Sistema de cache para melhorar performance do carregamento de chamados:
+    * Cache no backend (Python) com TTL de 5 minutos para reduzir requisições ao Fluig
+    * Cache no frontend (localStorage) com TTL de 5 minutos para carregamento instantâneo
+    * Cache separado para "MEUS CHAMADOS" (por email do usuário) e "TODOS ANALISTAS" (fixo)
+    * Limpeza automática de entradas expiradas do cache
+    * Thread-safe usando locks para garantir consistência em requisições concorrentes
+  - Busca paralela de detalhes de chamados:
+    * Função _buscar_detalhes_paralelo() implementada usando ThreadPoolExecutor
+    * Até 10 requisições simultâneas para buscar detalhes de chamados (configurável)
+    * Redução significativa do tempo de carregamento quando há muitos chamados
+    * Substitui busca sequencial (um por um) por busca paralela
+  - Atualização em background no frontend:
+    * Exibe dados do cache imediatamente ao carregar a página (sem espera)
+    * Atualiza dados em background sem bloquear a interface do usuário
+    * Atualiza a lista automaticamente apenas se houver mudanças nos dados
+    * Melhor experiência do usuário com carregamento instantâneo
+
+Versão 6.7.0
+  IMPLEMENTAÇÕES:
+  - Sistema de configurações personalizadas para abertura de chamados por email:
+    * Nova página de configurações (/configuracoes) para personalizar classificação de chamados
+    * Campos de configuração: email_solicitante, usuario_responsavel, serviço, urgência, tipo, status, etc.
+    * Configurações salvas em arquivo INI (src/configs/personalizar_chamado.ini)
+    * Múltiplas configurações suportadas (uma por email_solicitante)
+    * Interface visual com cards para listar e selecionar configurações salvas
+  - Integração de configurações com abertura automática de chamados:
+    * Gmail Monitor verifica se email do remetente tem configuração salva
+    * Se configurado, abre chamado classificado usando dados da configuração
+    * Usa servico_id da configuração para classificação automática
+    * Busca colleagueId do usuario_responsavel e define como targetAssignee
+    * Fallback para chamado normal se não houver configuração
+  - Modificações no sistema de payloads:
+    * PayloadChamadoClassificado() aceita parâmetro opcional target_assignee
+    * FluigCore.AberturaDeChamado() aceita parâmetro opcional target_assignee
+    * Permite definir responsável customizado para chamados classificados
+    * Mantém compatibilidade com código existente (target_assignee opcional)
+  - Restrição de acesso à página de configurações:
+    * Acesso restrito apenas para email nathan.azevedo@uisa.com.br
+    * Modal de permissão negada exibido para usuários não autorizados
+    * Proteção em todas as rotas de configurações (GET, POST /salvar, /carregar, /listar)
+    * Retorna erro 403 (Forbidden) para requisições não autorizadas
+
+Versão 6.8.0
+  IMPLEMENTAÇÕES:
+  - Separação de arquivos de configuração por funcionalidade:
+    * Configurações de personalização de chamados em personalizar_chamado.ini
+    * Configurações gerais do sistema em configuracoes_gerais.ini
+    * Criação de ConfigManagerGerais para gerenciar configurações gerais separadamente
+    * Cada aba da interface de configurações gerencia seu próprio arquivo
+    * Melhor organização e manutenção das configurações
+  - Nova aba "Configurações Gerais" na interface web:
+    * Campos configuráveis: GMAIL_CHECK_INTERVAL, GMAIL_MONITOR_ENABLED, BLACK_LIST_EMAILS, EMAILS_LIST
+    * Interface visual para gerenciar todas as configurações gerais do sistema
+    * Valores salvos no arquivo configuracoes_gerais.ini
+    * Fallback automático para valores do .env quando não configurado
+  - Remoção de valores hardcoded do sistema:
+    * Lista de emails bloqueados removida do código (email_validator.py)
+    * Todos os emails bloqueados agora vêm da configuração BLACK_LIST_EMAILS
+    * Facilita manutenção e personalização sem alterar código
+  - Integração de EMAILS_LIST com interface web:
+    * Campo EMAILS_LIST adicionado na aba "Configurações Gerais"
+    * Lista de emails que devem usar FakeUser configurável via interface
+    * Função _email_na_lista_fakeuser() atualizada para ler do arquivo de configuração
+    * Prioriza valores do arquivo INI sobre .env
+  - Refatoração do JavaScript da página de configurações:
+    * JavaScript movido para arquivo separado (src/site/static/js/configuracoes.js)
+    * Código mais organizado e fácil de manter
+    * Melhor performance com cache do navegador
+    * Separação clara de responsabilidades (HTML vs JS)
+  - Funcionalidade de exclusão de configurações:
+    * Botão de exclusão adicionado em cada card de configuração
+    * Rota DELETE /configuracoes/excluir implementada
+    * Confirmação antes de excluir configuração
+    * Atualização automática da lista após exclusão
+  - Melhorias no gerenciamento de configurações:
+    * Exibição do campo "Usuário Responsável" nos cards de configuração
+    * Sistema de abas para organizar diferentes tipos de configurações
+    * Carregamento automático de valores ao abrir cada aba
+    * Validação de campos antes de salvar
+
+Versão 7.3.2
+  IMPLEMENTAÇÕES:
+  - Endpoints genéricos para processos do Fluig:
+    * Nova rota POST /api/v1/fluig/{ambiente}/processos/iniciar para iniciar qualquer processo/formulário
+    * Nova rota POST /api/v1/fluig/{ambiente}/processos/upload para upload de arquivos no ECM
+    * Nova rota POST /api/v1/fluig/{ambiente}/processos/anexar para anexar arquivos em base64 a processos
+    * Nova rota POST /api/v1/fluig/{ambiente}/processos/anexar-upload para anexar arquivos brutos (multipart/form-data)
+    * Todos os endpoints utilizam autenticação via API_KEY e OAuth 1.0
+  - Obtenção automática de detalhes da atividade:
+    * Função obter_detalhes_atividade() implementada em FluigCore para buscar detalhes via API v2
+    * Endpoints /anexar e /anexar-upload obtêm automaticamente version, current_movto e attached_activity
+    * Detecta atividade ativa automaticamente ou usa a última atividade disponível
+    * Valores padrão (57, 3, "Aguardando Classificação") usados como fallback
+  - Simplificação de parâmetros nos endpoints de anexo:
+    * Removidos parâmetros version, current_movto e attached_activity do schema AnexarArquivoRequest
+    * Parâmetros obtidos automaticamente, não precisam ser fornecidos na requisição
+    * Documentação simplificada removendo detalhes técnicos desnecessários
+  - Padronização do retorno dos endpoints de anexo:
+    * Retorno simplificado contendo apenas: documentId, fileName e fullPath
+    * Removidos campos desnecessários (nome, document_id, process_instance_id, dados completos)
+    * Estrutura de resposta mais limpa e focada nas informações essenciais
+  - Melhorias na documentação dos endpoints:
+    * Descrições melhoradas e mais completas em todos os endpoints de processos
+    * Remoção de menções a autenticação e dados sensíveis da documentação
+    * Documentação focada em funcionalidades e uso, sem detalhes técnicos de implementação
+    * Descrições atualizadas em rt_fluig_chamados.py, rt_fluig_datasets.py, rt_fluig_servicos.py e rt_fluig_processos.py
+  - Validação e tratamento de process_instance_id:
+    * Limpeza automática de espaços em process_instance_id no endpoint /anexar-upload
+    * Conversão e validação robusta de valores numéricos
+    * Mensagens de erro mais claras para valores inválidos
+
+Versão 7.8.1
+  IMPLEMENTAÇÕES:
+  - Sistema completo de monitoramento de histórico de chamados:
+    * Novo módulo src/historico_monitor/ para gerenciar históricos de chamados abertos via email
+    * Salvamento automático de histórico inicial quando chamado é aberto via endpoint /email/abrir
+    * Armazenamento de históricos em arquivos .ini usando ConfigParser (src/historico_monitor/historicos/)
+    * Estrutura de dados com metadados (process_instance_id, ambiente, datas, total_items) e histórico completo (JSON)
+  - Monitoramento periódico de atualizações:
+    * Verificação automática de atualizações nos históricos a cada 1 hora (configurável)
+    * Detecção automática de novos eventos (MOVEMENT, OBSERVATION, ATTACHMENT) nos chamados
+    * Comparação inteligente entre histórico antigo e novo para identificar mudanças
+    * Atualização automática dos arquivos de histórico quando há novas mudanças
+  - Componentes do sistema de monitoramento:
+    * historico_manager.py - Gerencia salvamento, leitura e atualização de históricos usando ConfigParser
+    * historico_monitor.py - Monitora atualizações periodicamente e compara históricos
+    * background_service.py - Serviço em background para inicialização automática com a aplicação
+    * iniciar_monitor.py - Script standalone para iniciar monitoramento manualmente
+  - Integração automática com a aplicação:
+    * Monitoramento iniciado automaticamente quando aplicação FastAPI inicia (lifespan)
+    * Monitoramento parado automaticamente quando aplicação é encerrada (shutdown)
+    * Compatível com Cloud Run (execução em background via threads daemon)
+    * Configurável via variáveis de ambiente (HISTORICO_MONITOR_ENABLED, HISTORICO_CHECK_INTERVAL_HOURS, HISTORICO_MONITOR_AMBIENTE)
+  - Interface web de configurações:
+    * Campos adicionados na aba "Configurações Gerais" para gerenciar monitoramento de histórico
+    * Campo HISTORICO_CHECK_INTERVAL_HOURS: intervalo de verificação em horas (0.1 a 24)
+    * Campo HISTORICO_MONITOR_ENABLED: checkbox para habilitar/desabilitar monitoramento
+    * Valores salvos em configuracoes_gerais.ini com fallback para .env
+    * Carregamento e salvamento automático via JavaScript e endpoints FastAPI
+
+Versão 8.0.0
+  IMPLEMENTAÇÕES:
+  - Integração de monitoramento de histórico no Gmail Monitor:
+    * Salvamento automático de histórico quando chamado é aberto via Gmail Monitor
+    * Implementado em _chamar_api_chamado() para chamados normais
+    * Implementado em _abrir_chamado_classificado() para chamados classificados
+    * Histórico salvo imediatamente após obter process_instance_id com sucesso
+    * Todos os chamados abertos via email (endpoint /email/abrir ou Gmail Monitor) são monitorados
+  - Reinício automático de serviços ao salvar configurações:
+    * Endpoint /configuracoes/gerais/salvar reinicia serviços automaticamente após salvar
+    * Gmail Monitor e Histórico Monitor são reiniciados para aplicar novas configurações
+    * Não é necessário reiniciar a aplicação no Cloud Run para aplicar mudanças
+    * Mensagem de sucesso informa que serviços foram reiniciados
+  - Endpoint para reiniciar serviços manualmente:
+    * Nova rota POST /configuracoes/gerais/reiniciar-servicos para reiniciar serviços
+    * Requer autenticação e permissão (mesmo usuário autorizado das configurações)
+    * Reinicia Gmail Monitor e Histórico Monitor simultaneamente
+    * Útil para aplicar configurações sem salvar novamente
+  - Métodos de reinício nos serviços:
+    * Método reiniciar() implementado em GmailMonitorBackgroundService
+    * Método reiniciar() implementado em HistoricoMonitorBackgroundService
+    * Reinício gracioso: para serviço, aguarda 2 segundos, recarrega configurações e reinicia
+    * Funções globais reiniciar_monitoramento_gmail() e reiniciar_monitoramento_historico()
+
+Versão 8.5.0
+  IMPLEMENTAÇÕES:
+  - Sistema de gerenciamento de fluxo de histórico de chamados:
+    * Novo módulo historico_fluxo.py para processar itens do histórico baseado em regras configuráveis
+    * Regras definidas em arquivo .ini (src/historico_monitor/config/fluxo.ini) para fácil personalização
+    * Suporte a regras por state_name (estado do processo) e por tipo (MOVEMENT, OBSERVATION, ATTACHMENT)
+    * Configurações por regra: pular item, descrição personalizada, mostrar observação, mostrar responsáveis
+    * Substituição automática de placeholders ('responsaveis', 'observation_description') nas descrições
+  - Integração do sistema de fluxo com envio de emails:
+    * Template de email de atualização (criar_template_email_atualizacao) agora usa HistoricoFluxoManager
+    * Texto plano do email também processado pelo gerenciador de fluxo
+    * Itens que devem ser pulados são automaticamente removidos antes do envio
+    * Mensagens personalizadas baseadas nas regras de fluxo configuradas
+  - Correção da numeração de itens no histórico:
+    * Itens agora são salvos invertidos (mais antigos = ITEM_1, mais recentes = ITEM_N)
+    * Garante que novas atualizações sempre recebam números maiores e sejam detectadas corretamente
+    * Função comparar_historicos() corrigida para pegar os primeiros itens novos (mais recentes)
+    * Todas as funções que usam índices ajustadas para considerar a inversão (obter_itens_nao_enviados, marcar_itens_como_enviados, obter_indices_itens_nao_enviados)
+  - Regra especial para ignorar itens "Registro criado":
+    * Itens do tipo OBSERVATION com observation_description = "Registro criado" são automaticamente ignorados
+    * Não são salvos nas seções individuais do arquivo .ini
+    * Não são processados para envio de email
+    * Ainda aparecem no JSON completo (DADOS_COMPLETOS) para fins de auditoria
+  - Melhorias na exibição de responsáveis:
+    * Função _obter_responsaveis() agora retorna apenas o primeiro responsável
+    * Evita exibição de múltiplos responsáveis separados por vírgula (ex: "Nathan Renner de Azevedo, ITSM_TODOS")
+    * Emails de atualização mais limpos e focados no responsável principal
+  - Estrutura de configuração de fluxo:
+    * Arquivo fluxo.ini organizado por seções [state_name:Nome] e [tipo:TIPO]
+    * Propriedades configuráveis: pular, descricao_etapa, mostrar_observacao, mostrar_responsaveis
+    * Fácil edição sem necessidade de modificar código
+    * Suporte a placeholders dinâmicos nas descrições
+
+Versão 8.5.2
+  IMPLEMENTAÇÕES:
+  - Sistema de templates de chamados por usuário:
+    * Novo módulo user_template_manager.py para gerenciar templates de título e descrição
+    * Suporte a múltiplos templates com nomes personalizados por usuário
+    * Templates salvos em arquivos .ini individuais na pasta src/configs/user_configs/
+    * Um arquivo por usuário: template_{email_normalizado}.ini
+    * Cada template salvo em seção separada: TEMPLATE_{NOME}
+  - Interface web para gerenciamento de templates:
+    * Botões "Salvar Template" e "Carregar Template" adicionados na seção "Dados do Chamado"
+    * Botões posicionados no canto direito do cabeçalho da seção
+    * Botões com tamanho reduzido (padding: 6px 12px, font-size: 13px)
+    * Modal para salvar template com campo de nome obrigatório
+    * Modal para listar e selecionar templates quando houver múltiplos
+  - Funcionalidades de templates:
+    * Salvar template: modal solicita nome do template antes de salvar
+    * Carregar template: se houver apenas 1 template, carrega diretamente; se houver mais, mostra lista
+    * Excluir template: botão de exclusão em cada item da lista de templates
+    * Listar templates: endpoint retorna todos os templates do usuário logado
+  - Endpoints de templates:
+    * POST /chamado/template/salvar - Salva template com nome, título e descrição
+    * GET /chamado/template/carregar - Carrega template específico (aceita nome_template como query parameter)
+    * GET /chamado/template/listar - Lista todos os templates do usuário
+    * DELETE /chamado/template/excluir - Exclui template específico
+  - Melhorias na experiência do usuário:
+    * Remoção de popups (alerts) nas operações de salvar e carregar templates
+    * Operações ocorrem silenciosamente com feedback apenas no console
+    * Confirmação apenas para exclusão de templates (usando confirm nativo)
+    * Lista de templates recarrega automaticamente após exclusão
+    * Modal fecha automaticamente se não houver mais templates após exclusão
+  - Padronização visual dos botões:
+    * Todos os botões da interface web alterados para cor cinza
+    * Botão do Google (login) atualizado para usar cores cinza
+    * Botões de template e exclusão seguem o mesmo padrão visual
+    * Consistência visual em toda a aplicação web
+
+Versão 8.7.0
+  IMPLEMENTAÇÕES:
+  - Sistema completo de sincronização de configurações com Google Drive:
+    * Novo módulo drive_config_manager.py para gerenciar upload/download de configurações
+    * Sincronização automática ao salvar templates, configurações de personalização e configurações gerais
+    * Sincronização inicial automática ao iniciar o programa (upload de todas as configurações existentes)
+    * Estrutura automática de pastas no Drive (user_configs/, arquivos raiz)
+    * Atualização inteligente de arquivos existentes (não duplica arquivos)
+  - Integração com gerenciadores existentes:
+    * UserTemplateManager: sincroniza templates após salvar/excluir
+    * ConfigManager: sincroniza configurações de personalização após salvar
+    * ConfigManagerGerais: sincroniza configurações gerais após salvar
+    * Sincronização não bloqueia operações principais (falhas silenciosas)
+  - Endpoints REST para backup/restore manual:
+    * POST /configuracoes/drive/backup - Faz backup manual de todas as configurações
+    * POST /configuracoes/drive/restore - Restaura configurações do Drive para o sistema local
+    * GET /configuracoes/drive/status - Verifica status da sincronização e lista arquivos no Drive
+    * Endpoints restritos apenas para administradores
+  - Variáveis de ambiente adicionadas:
+    * FOLDER_ID_DRIVE_CONFIGS - ID da pasta do Google Drive para configurações
+    * DRIVE_SYNC_ENABLED - Habilita/desabilita sincronização automática (padrão: false)
+    * Fallback automático para FOLDER_ID_DRIVE se FOLDER_ID_DRIVE_CONFIGS não configurado
+  - Correções técnicas:
+    * Correção de erro 403 ao atualizar arquivos existentes no Drive (uso de addParents/removeParents)
+    * Tratamento correto de arquivos existentes vs novos arquivos
+    * Criação automática de subpastas no Drive quando necessário
+    * Busca inteligente de arquivos por nome antes de criar/atualizar
+  - Melhorias na interface:
+    * Remoção de border-radius do modal de "Acesso Negado" (bordas quadradas conforme padrão)
+    * Remoção de border-radius do botão "Voltar para Chamados" no modal
+    * Consistência visual com o padrão do sistema (bordas quadradas)
+  - Documentação:
+    * docs/ANALISE_GOOGLE_DRIVE_CONFIG.md - Análise técnica da implementação
+    * docs/GOOGLE_DRIVE_CONFIG_USO.md - Guia completo de uso e configuração
+    * Arquivo .gitkeep adicionado em src/configs/user_configs/ para manter estrutura no git
+
+Versão 9.2.3
+  IMPLEMENTAÇÕES:
+  - Sistema completo de deduplicação de emails baseado em padrões configuráveis:
+    * Novo módulo email_deduplicator.py para gerenciar deduplicação de emails
+    * Suporte a padrões regex ou palavras-chave simples (ex: "Endereço MAC:", "UUID:")
+    * Extração automática de identificadores únicos (MAC addresses, UUIDs, códigos alfanuméricos)
+    * Detecção de emails duplicados antes de abrir chamados
+    * Prevenção de abertura de múltiplos chamados para o mesmo processo/equipamento
+    * Campo EMAIL_DEDUPLICATION_EMAILS na página de configurações gerais
+    * Lista de emails (separados por vírgula) que devem passar pela verificação de deduplicação
+    * Se configurado, apenas emails desses remetentes terão padrões verificados
+    * Se deixado em branco, todos os emails serão verificados
+    * Comparação case-insensitive para maior flexibilidade
+  - Salvamento de identificadores processados:
+    * Identificadores salvos no Google Drive (subpasta deduplicacao/)
+    * Arquivo email_identificadores_processados.ini armazena histórico completo
+    * Cada identificador associado a data/hora e process_instance_id do chamado
+    * Preservação de maiúsculas/minúsculas usando ConfigParser.optionxform = str
+    * Importante para MAC addresses, UUIDs e outros identificadores case-sensitive
+  - Integração com Gmail Monitor:
+    * Verificação de duplicação antes de chamar API para abrir chamado
+    * Se email duplicado detectado, não abre novo chamado e marca email como processado
+    * Logs detalhados quando duplicação é detectada (identificador e process_instance_id existente)
+    * Marcação automática de identificador como processado após abertura bem-sucedida
+  - Algoritmo de extração de identificadores:
+    * Regex simplificada usando raw f-strings (rf"") para evitar problemas com escape
+    * Padrão: {palavra_chave}\s*:?\s*([^\s]+) captura valor após palavra-chave
+    * Suporte a padrões com ou sem dois-pontos (ex: "Endereço MAC:" ou "Endereço MAC")
+    * Extração inteligente de diferentes tipos: MAC addresses (12 hex), UUIDs, códigos alfanuméricos, números
+    * Validação para evitar retornar o próprio padrão como identificador
+  - Funcionalidades de verificação:
+    * verificar_duplicado() - Verifica se email é duplicado baseado em padrões
+    * extrair_identificador() - Extrai identificador único do email
+    * marcar_como_processado() - Salva identificador no Drive após processamento
+    * Verificação de email na lista antes de processar padrões
+    * Retorno de process_instance_id existente quando duplicado detectado

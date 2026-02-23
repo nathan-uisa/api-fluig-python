@@ -20,14 +20,24 @@ async def BuscarDataset(
     api_key: str = Depends(Auth_API_KEY)
 ):
     """
-    Busca dados em um dataset do Fluig
+    Consulta dados de um dataset específico no Fluig
+    
+    Este endpoint permite buscar e recuperar informações armazenadas em datasets
+    do Fluig.
+    
+    **Funcionalidades:**
+    - Consulta de dados de qualquer dataset configurado no Fluig
+    - Filtragem por usuário específico quando aplicável
+    - Retorno estruturado dos dados do dataset
     
     Args:
-        Item: Objeto Datasets contendo dataset_id e user
-        ambiente: Ambiente do Fluig (prd ou qld)
+        Item: Objeto contendo:
+            - dataset_id: Identificador único do dataset no Fluig
+            - user: Usuário para filtrar os dados (quando aplicável)
+        ambiente: Ambiente do Fluig onde o dataset está localizado (prd ou qld)
     
     Returns:
-        Dados do dataset encontrados
+        dict: Dados do dataset consultado, estruturados conforme a configuração do dataset
     """
     ambiente_validado = validar_ambiente(ambiente)
     try:

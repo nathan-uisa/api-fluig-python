@@ -8,13 +8,22 @@ from src.modelo_dados.modelo_settings import ConfigEnvSetings
 
 def _obter_blacklist_emails() -> list:
     """
-    Obtém a lista de emails bloqueados da variável BLACK_LIST_EMAILS
+    Obtém a lista de emails bloqueados da configuração (arquivo INI ou .env)
     
     Returns:
         Lista de emails bloqueados (em minúsculas)
     """
     try:
-        blacklist_str = getattr(ConfigEnvSetings, 'BLACK_LIST_EMAILS', '')
+        # Tenta carregar do arquivo de configuração primeiro
+        from src.configs.config_manager import get_config_manager_gerais
+        config_manager = get_config_manager_gerais()
+        configs_gerais = config_manager.carregar_configuracao()
+        blacklist_str = configs_gerais.get('black_list_emails', '')
+        
+        # Se não houver no arquivo INI, usa do .env
+        if not blacklist_str or not blacklist_str.strip():
+            blacklist_str = getattr(ConfigEnvSetings, 'BLACK_LIST_EMAILS', '')
+        
         if not blacklist_str or not blacklist_str.strip():
             return []
         
@@ -52,17 +61,9 @@ def validar_email_uisa(email: str) -> Dict[str, any]:
     if not email_lower.endswith("@uisa.com.br"):
         return {"valido": False, "mensagem": "Domínio não permitido", "is_blacklist": False}
     
-    # Lista de emails de sistema bloqueados (hardcoded)
-    emails_sistema_bloqueados = [
-        "fluig@uisa.com.br",
-        "noreply@uisa.com.br",
-        "no-reply@uisa.com.br",
-        "sistema@uisa.com.br",
-        "automacao@uisa.com.br"
-    ]
-    
-    if email_lower in emails_sistema_bloqueados:
-        return {"valido": False, "mensagem": "Email de sistema bloqueado", "is_blacklist": False}
+    # Emails de sistema bloqueados agora são gerenciados via BLACK_LIST_EMAILS
+    # A verificação já foi feita acima na função _obter_blacklist_emails()
+    # Não há mais lista hardcoded - todos os emails bloqueados vêm da configuração
     
     return {"valido": True, "mensagem": None, "is_blacklist": False}
 

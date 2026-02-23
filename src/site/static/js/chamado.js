@@ -55,6 +55,133 @@ document.addEventListener('DOMContentLoaded', function() {
     let paginaAtualGrupo = 1;
     const itensPorPaginaGrupo = 10;
 
+    // ==================== SISTEMA DE CACHE NO FRONTEND ====================
+    const CACHE_KEY_FILA = 'chamados_fila_cache';
+    const CACHE_KEY_GRUPO = 'chamados_grupo_cache';
+    const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos em milissegundos
+    
+    /**
+     * Obtém dados do cache localStorage se ainda válidos
+     */
+    function obterCache(chave) {
+        try {
+            const cacheData = localStorage.getItem(chave);
+            if (!cacheData) {
+                return null;
+            }
+            
+            const parsed = JSON.parse(cacheData);
+            const agora = Date.now();
+            
+            // Verifica se cache expirou
+            if (agora > parsed.expira_em) {
+                localStorage.removeItem(chave);
+                console.log(`[Cache] Cache expirado para chave: ${chave}`);
+                return null;
+            }
+            
+            console.log(`[Cache] Cache hit para chave: ${chave}`);
+            return parsed.dados;
+        } catch (e) {
+            console.error('[Cache] Erro ao ler cache:', e);
+            return null;
+        }
+    }
+    
+    /**
+     * Salva dados no cache localStorage com TTL
+     */
+    function salvarCache(chave, dados) {
+        try {
+            const cacheData = {
+                dados: dados,
+                expira_em: Date.now() + CACHE_TTL_MS,
+                criado_em: Date.now()
+            };
+            localStorage.setItem(chave, JSON.stringify(cacheData));
+            console.log(`[Cache] Dados salvos no cache para chave: ${chave}`);
+        } catch (e) {
+            console.error('[Cache] Erro ao salvar cache:', e);
+            // Se localStorage estiver cheio, tenta limpar cache antigo
+            try {
+                const keys = Object.keys(localStorage);
+                for (let key of keys) {
+                    if (key.startsWith('chamados_') && key.endsWith('_cache')) {
+                        localStorage.removeItem(key);
+                    }
+                }
+                // Tenta salvar novamente
+                localStorage.setItem(chave, JSON.stringify(cacheData));
+            } catch (e2) {
+                console.error('[Cache] Erro ao limpar e salvar cache:', e2);
+            }
+        }
+    }
+    
+    /**
+     * Atualiza cache em background sem bloquear a UI
+     */
+    async function atualizarChamadosFilaEmBackground() {
+        try {
+            console.log('[Cache] Atualizando cache de MEUS CHAMADOS em background...');
+            // Obter dados atuais ANTES de buscar novos (para comparação)
+            const cacheAtual = obterCache(CACHE_KEY_FILA);
+            const dadosAtuais = cacheAtual ? JSON.stringify(cacheAtual.chamados || []) : null;
+            
+            const response = await fetch('/api/chamados/fila');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.sucesso) {
+                    // Comparar dados ANTES de salvar no cache
+                    const dadosNovos = JSON.stringify(data.chamados || []);
+                    if (dadosAtuais !== dadosNovos) {
+                        console.log('[Cache] Dados mudaram, atualizando lista...');
+                        todosChamados = data.chamados || [];
+                        renderizarChamadosFila();
+                    } else {
+                        console.log('[Cache] Dados não mudaram, apenas atualizando cache...');
+                    }
+                    // Salvar no cache após comparar
+                    salvarCache(CACHE_KEY_FILA, data);
+                }
+            }
+        } catch (error) {
+            console.error('[Cache] Erro ao atualizar cache em background:', error);
+        }
+    }
+    
+    /**
+     * Atualiza cache do grupo em background sem bloquear a UI
+     */
+    async function atualizarChamadosGrupoEmBackground() {
+        try {
+            console.log('[Cache] Atualizando cache de TODOS ANALISTAS em background...');
+            // Obter dados atuais ANTES de buscar novos (para comparação)
+            const cacheAtual = obterCache(CACHE_KEY_GRUPO);
+            const dadosAtuais = cacheAtual ? JSON.stringify(cacheAtual.chamados || []) : null;
+            
+            const response = await fetch('/api/chamados/grupo-itsm-todos');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.sucesso) {
+                    // Comparar dados ANTES de salvar no cache
+                    const dadosNovos = JSON.stringify(data.chamados || []);
+                    if (dadosAtuais !== dadosNovos) {
+                        console.log('[Cache] Dados mudaram, atualizando lista...');
+                        todosChamadosGrupo = data.chamados || [];
+                        renderizarChamadosGrupo();
+                    } else {
+                        console.log('[Cache] Dados não mudaram, apenas atualizando cache...');
+                    }
+                    // Salvar no cache após comparar
+                    salvarCache(CACHE_KEY_GRUPO, data);
+                }
+            }
+        } catch (error) {
+            console.error('[Cache] Erro ao atualizar cache em background:', error);
+        }
+    }
+
     const servicoInput = document.getElementById('servico');
     const servicoIdInput = document.getElementById('servico_id');
     const servicoDropdown = document.getElementById('servico-dropdown');
@@ -210,6 +337,268 @@ document.addEventListener('DOMContentLoaded', function() {
                 previewButtonGroup.style.display = 'none';
             }
         });
+    }
+
+    // Event listeners para templates
+    const btnSalvarTemplate = document.getElementById('btn-salvar-template');
+    const btnCarregarTemplate = document.getElementById('btn-carregar-template');
+    const modalSalvarTemplate = document.getElementById('modal-salvar-template');
+    const modalListarTemplates = document.getElementById('modal-listar-templates');
+    const nomeTemplateInput = document.getElementById('nome-template-input');
+    const btnConfirmarSalvarTemplate = document.getElementById('btn-confirmar-salvar-template');
+    const btnCancelarSalvarTemplate = document.getElementById('btn-cancelar-salvar-template');
+    const btnFecharListarTemplates = document.getElementById('btn-fechar-listar-templates');
+    const listaTemplatesContainer = document.getElementById('lista-templates-container');
+    
+    // Abrir modal de salvar template
+    if (btnSalvarTemplate) {
+        btnSalvarTemplate.addEventListener('click', function() {
+            const titulo = document.getElementById('ds_titulo').value.trim();
+            const descricao = document.getElementById('ds_chamado').value.trim();
+            
+            if (!titulo && !descricao) {
+                return;
+            }
+            
+            // Limpa o campo e mostra o modal
+            if (nomeTemplateInput) {
+                nomeTemplateInput.value = '';
+            }
+            if (modalSalvarTemplate) {
+                modalSalvarTemplate.style.display = 'flex';
+                if (nomeTemplateInput) {
+                    nomeTemplateInput.focus();
+                }
+            }
+        });
+    }
+    
+    // Confirmar salvar template
+    if (btnConfirmarSalvarTemplate) {
+        btnConfirmarSalvarTemplate.addEventListener('click', async function() {
+            const nomeTemplate = nomeTemplateInput ? nomeTemplateInput.value.trim() : '';
+            
+            if (!nomeTemplate) {
+                return;
+            }
+            
+            const titulo = document.getElementById('ds_titulo').value.trim();
+            const descricao = document.getElementById('ds_chamado').value.trim();
+            
+            try {
+                btnConfirmarSalvarTemplate.disabled = true;
+                btnConfirmarSalvarTemplate.textContent = 'Salvando...';
+                
+                const response = await fetch('/chamado/template/salvar', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        nome_template: nomeTemplate,
+                        titulo: titulo,
+                        descricao: descricao
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.sucesso) {
+                    if (modalSalvarTemplate) {
+                        modalSalvarTemplate.style.display = 'none';
+                    }
+                } else {
+                    console.error('Erro ao salvar template:', data.mensagem || 'Erro desconhecido');
+                }
+            } catch (error) {
+                console.error('Erro ao salvar template:', error);
+            } finally {
+                btnConfirmarSalvarTemplate.disabled = false;
+                btnConfirmarSalvarTemplate.textContent = 'Salvar';
+            }
+        });
+    }
+    
+    // Cancelar salvar template
+    if (btnCancelarSalvarTemplate) {
+        btnCancelarSalvarTemplate.addEventListener('click', function() {
+            if (modalSalvarTemplate) {
+                modalSalvarTemplate.style.display = 'none';
+            }
+        });
+    }
+    
+    // Fechar modal de listar templates
+    if (btnFecharListarTemplates) {
+        btnFecharListarTemplates.addEventListener('click', function() {
+            if (modalListarTemplates) {
+                modalListarTemplates.style.display = 'none';
+            }
+        });
+    }
+    
+    // Fechar modais ao clicar fora
+    if (modalSalvarTemplate) {
+        modalSalvarTemplate.addEventListener('click', function(e) {
+            if (e.target === modalSalvarTemplate) {
+                modalSalvarTemplate.style.display = 'none';
+            }
+        });
+    }
+    
+    if (modalListarTemplates) {
+        modalListarTemplates.addEventListener('click', function(e) {
+            if (e.target === modalListarTemplates) {
+                modalListarTemplates.style.display = 'none';
+            }
+        });
+    }
+    
+    // Carregar template
+    if (btnCarregarTemplate) {
+        btnCarregarTemplate.addEventListener('click', async function() {
+            try {
+                // Primeiro, lista os templates
+                const responseListar = await fetch('/chamado/template/listar');
+                const dataListar = await responseListar.json();
+                
+                if (!dataListar.sucesso || !dataListar.templates || dataListar.templates.length === 0) {
+                    console.log('Nenhum template encontrado');
+                    return;
+                }
+                
+                // Se houver apenas 1 template, carrega diretamente
+                if (dataListar.templates.length === 1) {
+                    const template = dataListar.templates[0];
+                    carregarTemplateSelecionado(template.nome);
+                } else {
+                    // Se houver mais de 1, mostra lista
+                    mostrarListaTemplates(dataListar.templates);
+                }
+            } catch (error) {
+                console.error('Erro ao listar templates:', error);
+            }
+        });
+    }
+    
+    // Função para mostrar lista de templates
+    function mostrarListaTemplates(templates) {
+        if (!listaTemplatesContainer || !modalListarTemplates) {
+            return;
+        }
+        
+        listaTemplatesContainer.innerHTML = '';
+        
+        templates.forEach(template => {
+            const templateItem = document.createElement('div');
+            templateItem.style.cssText = 'padding: 12px; margin-bottom: 8px; border: 1px solid var(--border-primary, #ddd); border-radius: 4px; transition: background 0.2s; display: flex; justify-content: space-between; align-items: center;';
+            templateItem.style.backgroundColor = 'var(--bg-secondary, #f5f5f5)';
+            
+            const templateInfo = document.createElement('div');
+            templateInfo.style.cssText = 'flex: 1; cursor: pointer;';
+            templateInfo.innerHTML = `
+                <div style="font-weight: 600; color: var(--text-primary, #333); margin-bottom: 4px;">${escapeHtml(template.nome)}</div>
+                <div style="font-size: 12px; color: var(--text-secondary, #666); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                    ${escapeHtml(template.titulo || 'Sem título')}
+                </div>
+            `;
+            
+            templateInfo.addEventListener('mouseenter', function() {
+                templateItem.style.backgroundColor = 'var(--bg-tertiary, #e5e5e5)';
+            });
+            
+            templateInfo.addEventListener('mouseleave', function() {
+                templateItem.style.backgroundColor = 'var(--bg-secondary, #f5f5f5)';
+            });
+            
+            templateInfo.addEventListener('click', function() {
+                carregarTemplateSelecionado(template.nome);
+                modalListarTemplates.style.display = 'none';
+            });
+            
+            const btnExcluir = document.createElement('button');
+            btnExcluir.type = 'button';
+            btnExcluir.textContent = 'Excluir';
+            btnExcluir.style.cssText = 'padding: 6px 12px; font-size: 12px; background: var(--btn-primary-bg, #6b7280); color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: 10px;';
+            btnExcluir.addEventListener('mouseenter', function() {
+                this.style.backgroundColor = 'var(--btn-primary-bg-hover, #4b5563)';
+            });
+            btnExcluir.addEventListener('mouseleave', function() {
+                this.style.backgroundColor = 'var(--btn-primary-bg, #6b7280)';
+            });
+            btnExcluir.addEventListener('click', async function(e) {
+                e.stopPropagation(); // Evita que o clique no botão dispare o clique no item
+                if (confirm(`Tem certeza que deseja excluir o template "${template.nome}"?`)) {
+                    await excluirTemplate(template.nome);
+                    // Recarrega a lista após exclusão
+                    const responseListar = await fetch('/chamado/template/listar');
+                    const dataListar = await responseListar.json();
+                    if (dataListar.sucesso && dataListar.templates) {
+                        if (dataListar.templates.length === 0) {
+                            modalListarTemplates.style.display = 'none';
+                        } else {
+                            mostrarListaTemplates(dataListar.templates);
+                        }
+                    }
+                }
+            });
+            
+            templateItem.appendChild(templateInfo);
+            templateItem.appendChild(btnExcluir);
+            listaTemplatesContainer.appendChild(templateItem);
+        });
+        
+        modalListarTemplates.style.display = 'flex';
+    }
+    
+    // Função para excluir template
+    async function excluirTemplate(nomeTemplate) {
+        try {
+            const response = await fetch(`/chamado/template/excluir?nome_template=${encodeURIComponent(nomeTemplate)}`, {
+                method: 'DELETE'
+            });
+            const data = await response.json();
+            
+            if (data.sucesso) {
+                console.log(`Template "${nomeTemplate}" excluído com sucesso`);
+            } else {
+                console.error('Erro ao excluir template:', data.mensagem || 'Erro desconhecido');
+            }
+        } catch (error) {
+            console.error('Erro ao excluir template:', error);
+        }
+    }
+    
+    // Função para carregar template selecionado
+    async function carregarTemplateSelecionado(nomeTemplate) {
+        try {
+            btnCarregarTemplate.disabled = true;
+            btnCarregarTemplate.textContent = 'Carregando...';
+            
+            const response = await fetch(`/chamado/template/carregar?nome_template=${encodeURIComponent(nomeTemplate)}`);
+            const data = await response.json();
+            
+            if (data.sucesso && data.template) {
+                // Preenche os campos com o template
+                const tituloInput = document.getElementById('ds_titulo');
+                const descricaoInput = document.getElementById('ds_chamado');
+                
+                if (tituloInput && data.template.titulo) {
+                    tituloInput.value = data.template.titulo;
+                }
+                
+                if (descricaoInput && data.template.descricao) {
+                    descricaoInput.value = data.template.descricao;
+                }
+            } else {
+                console.error('Erro ao carregar template:', data.mensagem || 'Template não encontrado');
+            }
+        } catch (error) {
+            console.error('Erro ao carregar template:', error);
+        } finally {
+            btnCarregarTemplate.disabled = false;
+            btnCarregarTemplate.textContent = 'Carregar Template';
+        }
     }
 
     // Abrir modal de prévia
@@ -670,6 +1059,23 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
+        // Verificar cache primeiro
+        const cache = obterCache(CACHE_KEY_FILA);
+        if (cache) {
+            console.log('[carregarChamadosFila] Usando dados do cache');
+            // Esconder loading e erros
+            chamadosLoading.style.display = 'none';
+            if (chamadosError) chamadosError.style.display = 'none';
+            
+            todosChamados = cache.chamados || [];
+            paginaAtual = 1;
+            renderizarChamadosFila();
+            
+            // Atualizar em background (sem bloquear UI)
+            atualizarChamadosFilaEmBackground();
+            return;
+        }
+        
         try {
             chamadosLoading.style.display = 'flex';
             if (chamadosError) chamadosError.style.display = 'none';
@@ -709,6 +1115,9 @@ document.addEventListener('DOMContentLoaded', function() {
             todosChamados = data.chamados || [];
             paginaAtual = 1;
             console.log('[carregarChamadosFila] Total de chamados:', todosChamados.length);
+            
+            // Salvar no cache
+            salvarCache(CACHE_KEY_FILA, data);
             
             // Renderiza a primeira página
             renderizarChamadosFila();
@@ -902,6 +1311,23 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
+        // Verificar cache primeiro
+        const cache = obterCache(CACHE_KEY_GRUPO);
+        if (cache) {
+            console.log('[carregarChamadosGrupo] Usando dados do cache');
+            // Esconder loading e erros
+            chamadosGrupoLoading.style.display = 'none';
+            if (chamadosGrupoError) chamadosGrupoError.style.display = 'none';
+            
+            todosChamadosGrupo = cache.chamados || [];
+            paginaAtualGrupo = 1;
+            renderizarChamadosGrupo();
+            
+            // Atualizar em background (sem bloquear UI)
+            atualizarChamadosGrupoEmBackground();
+            return;
+        }
+        
         try {
             chamadosGrupoLoading.style.display = 'flex';
             if (chamadosGrupoError) chamadosGrupoError.style.display = 'none';
@@ -941,6 +1367,9 @@ document.addEventListener('DOMContentLoaded', function() {
             todosChamadosGrupo = data.chamados || [];
             paginaAtualGrupo = 1;
             console.log('[carregarChamadosGrupo] Total de chamados:', todosChamadosGrupo.length);
+            
+            // Salvar no cache
+            salvarCache(CACHE_KEY_GRUPO, data);
             
             // Renderiza a primeira página
             renderizarChamadosGrupo();

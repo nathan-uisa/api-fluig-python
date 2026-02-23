@@ -24,6 +24,12 @@ def fazer_login_fluig(ambiente: str = "PRD", usuario: str = None, senha: str = N
     Returns:
         WebDriver se login bem-sucedido, None caso contrário
     """
+    # Verifica se login via browser está habilitado
+    browser_login_enabled = ConfigEnvSetings.BROWSER_LOGIN_ENABLED.lower() in ("true", "1", "yes")
+    if not browser_login_enabled:
+        logger.error("[fazer_login_fluig] Login via browser está DESABILITADO (BROWSER_LOGIN_ENABLED=false). Use OAuth 1.0 para autenticação.")
+        return None
+    
     driver = None
     try:
         # Seleciona URL baseado no ambiente

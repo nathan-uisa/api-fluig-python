@@ -3,7 +3,7 @@ import re
 import os
 from typing import Dict, Optional
 from src.utilitarios_centrais.logger import logger
-from src.site.planilha import PATH_TO_TEMP
+from src.site.planilha import PATH_TO_TEMP, obter_caminho_temp_por_email
 from src.modelo_dados.modelo_sites import DadosChamado
 from src.modelo_dados.modelo_settings import ConfigEnvSetings
 from src.modelo_dados.modelos_fluig import AberturaChamadoClassificado
@@ -24,6 +24,7 @@ class AbrirChamados:
             email_usuario: Email do usuário que está criando os chamados
         """
         self.email_usuario = email_usuario
+        self.path_to_temp = obter_caminho_temp_por_email(email_usuario) if email_usuario else PATH_TO_TEMP
         self.config_planilha = configparser.ConfigParser()
     
     def carregar_dados_temp(self) -> bool:
@@ -34,14 +35,14 @@ class AbrirChamados:
             True se carregou com sucesso, False caso contrário
         """
         try:
-            if not os.path.exists(PATH_TO_TEMP):
-                logger.error(f"Arquivo temp.txt não encontrado: {PATH_TO_TEMP}")
+            if not os.path.exists(self.path_to_temp):
+                logger.error(f"Arquivo temp.txt não encontrado: {self.path_to_temp}")
                 return False
             
-            self.config_planilha.read(PATH_TO_TEMP, encoding='utf-8')
+            self.config_planilha.read(self.path_to_temp, encoding='utf-8')
             
             if not self.config_planilha.sections():
-                logger.warning("Nenhuma seção encontrada no arquivo temp.txt")
+                logger.warning(f"Nenhuma seção encontrada no arquivo {os.path.basename(self.path_to_temp)}")
                 return False
             
             logger.info(f"Dados carregados: {len(self.config_planilha.sections())} linhas encontradas")

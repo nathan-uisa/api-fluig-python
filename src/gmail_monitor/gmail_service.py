@@ -12,11 +12,10 @@ from src.modelo_dados.modelo_settings import ConfigEnvSetings
 from src.utilitarios_centrais.logger import logger
 from src.modelo_dados.modelos_fluig import AberturaChamado
 from src.fluig.fluig_core import FluigCore
-from src.utilitarios_centrais.google_drive_utils import baixar_arquivo_drive
 from .email_validator import validar_email_uisa, extrair_email_remetente
-from .drive_uploader import salvar_anexo_no_drive
 from .people_service import buscar_telefone_no_diretorio
-from .email_sender import enviar_email
+from .email_sender import enviar_email, criar_template_email_chamado, criar_template_email_erro
+from .email_deduplicator import EmailDeduplicator
 
 
 class GmailMonitorService:
@@ -28,6 +27,7 @@ class GmailMonitorService:
         self.label_processados = "PROCESSADOS"
         self.gmail_service = None
         self.label_id = None
+        self.deduplicator = EmailDeduplicator()
         self._inicializar_servico()
     
     def _inicializar_servico(self):
@@ -177,15 +177,30 @@ class GmailMonitorService:
                         self._marcar_como_processado(thread_id)
                         continue
                     
+                    # Verifica duplicação baseada em padrões (UUID, MAC, etc.)
+                    eh_duplicado, identificador, process_id_existente = self.deduplicator.verificar_duplicado(
+                        email_subject, email_body, email_remetente
+                    )
+                    
+                    if eh_duplicado:
+                        logger.info(
+                            f"[gmail_service] Email duplicado detectado - Identificador: {identificador}, "
+                            f"Chamado existente: {process_id_existente if process_id_existente else 'N/A'}. "
+                            f"Email não será processado."
+                        )
+                        # Marca como processado para não tentar novamente
+                        self._marcar_como_processado(thread_id)
+                        continue
+                    
                     # Processa anexos
-                    anexos_ids = self._processar_anexos(message_detail)
+                    anexos = self._processar_anexos(message_detail)
                     
                     # Chama a API para abrir chamado
                     resposta = self._chamar_api_chamado(
                         assunto=email_subject,
                         corpo=email_body,
                         email=email_remetente,
-                        anexos_ids=anexos_ids
+                        anexos=anexos
                     )
                     
                     chamado_aberto_com_sucesso = False
@@ -206,6 +221,19 @@ class GmailMonitorService:
                     if chamado_aberto_com_sucesso:
                         logger.info(f"[gmail_service] Chamado aberto com sucesso - marcando email como processado")
                         self._marcar_como_processado(thread_id)
+                        
+                        # Marca identificador como processado para deduplicação futura
+                        process_instance_id = None
+                        if resposta:
+                            try:
+                                resposta_json = json.loads(resposta) if isinstance(resposta, str) else resposta
+                                dados = resposta_json.get('dados', {})
+                                if isinstance(dados, dict):
+                                    process_instance_id = dados.get('processInstanceId') or dados.get('process_instance_id')
+                            except:
+                                pass
+                        
+                        self.deduplicator.marcar_como_processado(email_subject, email_body, process_instance_id)
                     else:
                         logger.warning(f"[gmail_service] Email NÃO será marcado como processado devido à falha. Permanecerá não lido para nova tentativa.")
                     
@@ -251,20 +279,42 @@ class GmailMonitorService:
             logger.error(f"[gmail_service] Erro ao extrair corpo do email: {str(e)}")
             return ""
     
-    def _processar_anexos(self, message_detail: Dict) -> List[str]:
-        """Processa anexos do email e salva no Drive"""
-        anexos_ids = []
+    def _processar_anexos(self, message_detail: Dict) -> List[Dict[str, str]]:
+        """
+        Processa anexos do email e retorna em formato base64 (sem salvar no Drive)
+        
+        Trata diferentes estruturas de email:
+        - Emails simples (sem multipart): verifica anexo diretamente no payload.body
+        - Emails multipart: processa parts recursivamente para encontrar anexos aninhados
+        
+        Returns:
+            Lista de dicionários com 'nome' e 'conteudo_base64', ou lista vazia se não houver anexos
+        """
+        anexos = []
         
         try:
             payload = message_detail.get('payload', {})
+            message_id = message_detail.get('id')
             
-            def processar_parts(parts):
-                for part in parts:
-                    filename = part.get('filename')
-                    if filename and part.get('body', {}).get('attachmentId'):
-                        attachment_id = part['body']['attachmentId']
-                        message_id = message_detail['id']
+            if not message_id:
+                logger.warning("[gmail_service] Message ID não encontrado - não é possível processar anexos")
+                return anexos
+            
+            import base64
+            
+            def processar_part(part: Dict):
+                """
+                Processa uma part individual, verificando se é um anexo
+                e processando recursivamente se tiver parts aninhadas
+                """
+                # Verifica se esta part é um anexo
+                filename = part.get('filename')
+                body = part.get('body', {})
+                attachment_id = body.get('attachmentId')
                         
+                if filename and attachment_id:
+                    # Esta part é um anexo
+                    try:
                         # Baixa o anexo
                         attachment = self.gmail_service.users().messages().attachments().get(
                             userId='me',
@@ -272,58 +322,106 @@ class GmailMonitorService:
                             id=attachment_id
                         ).execute()
                         
-                        # Decodifica o conteúdo
-                        import base64
+                        # Decodifica o conteúdo (Gmail usa base64 URL-safe)
                         file_data = base64.urlsafe_b64decode(attachment['data'])
                         
-                        # Salva no Drive
-                        file_id = salvar_anexo_no_drive(file_data, filename)
-                        if file_id:
-                            anexos_ids.append(file_id)
-                            logger.info(f"[gmail_service] Anexo processado com sucesso. ID adicionado à lista: {file_id}")
+                        # Converte para base64 padrão (não URL-safe)
+                        conteudo_base64 = base64.b64encode(file_data).decode('utf-8')
+                        
+                        anexos.append({
+                            'nome': filename,
+                            'conteudo_base64': conteudo_base64
+                        })
+                        logger.info(f"[gmail_service] Anexo processado com sucesso: {filename} ({len(file_data)} bytes)")
+                    except Exception as e:
+                        logger.error(f"[gmail_service] Erro ao baixar anexo {filename}: {str(e)}")
+                
+                # Processa parts aninhadas (para emails multipart complexos)
+                if 'parts' in part:
+                    for nested_part in part['parts']:
+                        processar_part(nested_part)
             
-            if 'parts' in payload:
-                processar_parts(payload['parts'])
+            # Verifica se é email simples (sem multipart) com anexo direto
+            if 'parts' not in payload:
+                # Email simples - verifica se há anexo diretamente no body
+                body = payload.get('body', {})
+                filename = payload.get('filename')
+                attachment_id = body.get('attachmentId')
+                
+                if filename and attachment_id:
+                    # Email simples com anexo
+                    try:
+                        attachment = self.gmail_service.users().messages().attachments().get(
+                            userId='me',
+                            messageId=message_id,
+                            id=attachment_id
+                        ).execute()
+                        
+                        file_data = base64.urlsafe_b64decode(attachment['data'])
+                        conteudo_base64 = base64.b64encode(file_data).decode('utf-8')
+                        
+                        anexos.append({
+                            'nome': filename,
+                            'conteudo_base64': conteudo_base64
+                        })
+                        logger.info(f"[gmail_service] Anexo processado com sucesso (email simples): {filename} ({len(file_data)} bytes)")
+                    except Exception as e:
+                        logger.error(f"[gmail_service] Erro ao baixar anexo {filename}: {str(e)}")
+            else:
+                # Email multipart - processa todas as parts recursivamente
+                for part in payload['parts']:
+                    processar_part(part)
             
-            if anexos_ids:
-                logger.info(f"[gmail_service] Encontrados {len(anexos_ids)} anexo(s) no email.")
+            # Log do resultado
+            if anexos:
+                logger.info(f"[gmail_service] Encontrados {len(anexos)} anexo(s) no email.")
             else:
                 logger.info(f"[gmail_service] Nenhum anexo encontrado no email.")
             
         except Exception as e:
             logger.error(f"[gmail_service] Erro ao processar anexos da mensagem: {str(e)}")
+            import traceback
+            logger.debug(f"[gmail_service] Traceback: {traceback.format_exc()}")
         
-        return anexos_ids
+        return anexos
     
-    def _chamar_api_chamado(self, assunto: str, corpo: str, email: str, anexos_ids: List[str]) -> Optional[str]:
-        """Abre chamado usando funções internas do projeto"""
+    def _chamar_api_chamado(self, assunto: str, corpo: str, email: str, anexos: List[Dict[str, str]]) -> Optional[str]:
+        """Abre chamado usando funções internas do projeto com anexos diretos (base64)"""
         try:
             # Usa ambiente PRD por padrão (pode ser configurado via variável de ambiente)
             ambiente = getattr(ConfigEnvSetings, 'GMAIL_MONITOR_AMBIENTE', 'prd').upper()
             
+            # Verifica se o email tem configuração salva
+            from src.configs.config_manager import get_config_manager
+            config_manager = get_config_manager()
+            configs = config_manager.carregar_configuracao(email)
+            
+            # Se encontrou configuração e tem servico_id, abre chamado classificado
+            if configs and configs.get('servico_id') and configs.get('servico_id').strip():
+                logger.info(f"[gmail_service] Configuração encontrada para email {email} - abrindo chamado classificado")
+                return self._abrir_chamado_classificado(
+                    assunto=assunto,
+                    corpo=corpo,
+                    email=email,
+                    anexos=anexos,
+                    configs=configs,
+                    ambiente=ambiente
+                )
+            
             # Busca telefone
             telefone = buscar_telefone_no_diretorio(email)
             
-            # 1. Validar e baixar anexos do Google Drive (se houver)
-            arquivos_baixados = []
-            if anexos_ids and len(anexos_ids) > 0:
-                logger.info(f"[gmail_service] Iniciando download de {len(anexos_ids)} arquivo(s) do Google Drive")
-                for file_id in anexos_ids:
-                    try:
-                        conteudo_bytes, nome_arquivo = baixar_arquivo_drive(file_id)
-                        if conteudo_bytes and nome_arquivo:
-                            arquivos_baixados.append({
-                                'bytes': conteudo_bytes,
-                                'nome': nome_arquivo,
-                                'file_id': file_id
-                            })
-                            logger.info(f"[gmail_service] Arquivo {file_id} baixado com sucesso: {nome_arquivo}")
-                        else:
-                            logger.warning(f"[gmail_service] Falha ao baixar arquivo {file_id} - continuando sem anexo")
-                    except Exception as e:
-                        logger.error(f"[gmail_service] Erro ao processar anexo {file_id}: {str(e)} - continuando sem anexo")
+            # Converte anexos para formato AnexoBase64
+            from src.modelo_dados.modelos_fluig import AnexoBase64
+            anexos_base64 = None
+            if anexos and len(anexos) > 0:
+                anexos_base64 = [
+                    AnexoBase64(nome=anexo['nome'], conteudo_base64=anexo['conteudo_base64'])
+                    for anexo in anexos
+                ]
+                logger.info(f"[gmail_service] Processando {len(anexos_base64)} anexo(s) em base64")
             
-            # 2. Abrir chamado UISA (normal)
+            # Abrir chamado UISA (normal)
             logger.info("[gmail_service] Abrindo chamado UISA (normal)")
             fluig_core = FluigCore(ambiente=ambiente)
             process_instance_id = None
@@ -333,7 +431,7 @@ class GmailMonitorService:
                 descricao=corpo,
                 usuario=email,
                 telefone=telefone if telefone else None,
-                anexos_ids=anexos_ids if anexos_ids else None
+                anexos=anexos_base64
             )
             resposta = fluig_core.AberturaDeChamado(tipo_chamado="normal", Item=item_uisa)
             
@@ -345,11 +443,39 @@ class GmailMonitorService:
                 if process_instance_id:
                     logger.info(f"[gmail_service] Chamado aberto com sucesso - ID: {process_instance_id}")
                     
-                    # 3. Se houver anexos e chamado foi criado, anexar arquivos
-                    if arquivos_baixados and process_instance_id:
-                        logger.info(f"[gmail_service] Iniciando anexo de {len(arquivos_baixados)} arquivo(s) ao chamado {process_instance_id}")
+                    # Salva histórico inicial do chamado (chamados abertos via email são monitorados)
+                    try:
+                        logger.info(f"[gmail_service] Salvando histórico inicial do chamado {process_instance_id}...")
+                        from src.historico_monitor.historico_manager import HistoricoManager
+                        historico_manager = HistoricoManager()
                         
-                        # Obtém colleague ID baseado no ambiente
+                        # Obtém histórico inicial do Fluig
+                        historico_inicial = fluig_core.obter_historico_chamado(process_instance_id)
+                        
+                        if historico_inicial:
+                            sucesso_salvamento = historico_manager.salvar_historico(
+                                process_instance_id=process_instance_id,
+                                historico_data=historico_inicial,
+                                ambiente=ambiente,
+                                email_remetente=email
+                            )
+                            if sucesso_salvamento:
+                                logger.info(f"[gmail_service] Histórico inicial do chamado {process_instance_id} salvo com sucesso")
+                            else:
+                                logger.warning(f"[gmail_service] Falha ao salvar histórico inicial do chamado {process_instance_id}")
+                        else:
+                            logger.warning(f"[gmail_service] Não foi possível obter histórico inicial do chamado {process_instance_id}")
+                    except Exception as e:
+                        # Não falha a abertura do chamado se houver erro ao salvar histórico
+                        logger.error(f"[gmail_service] Erro ao salvar histórico inicial do chamado {process_instance_id}: {str(e)}")
+                        import traceback
+                        logger.debug(f"[gmail_service] Traceback: {traceback.format_exc()}")
+                    
+                    # Processar e anexar arquivos se houver anexos
+                    if anexos and len(anexos) > 0 and process_instance_id:
+                        logger.info(f"[gmail_service] Iniciando anexo de {len(anexos)} arquivo(s) ao chamado {process_instance_id}")
+                        
+                        # Obtém colleague_id baseado no ambiente
                         if ambiente == "PRD":
                             colleague_id = ConfigEnvSetings.USER_COLLEAGUE_ID
                         else:  # QLD
@@ -359,8 +485,23 @@ class GmailMonitorService:
                             logger.error(f"[gmail_service] Colleague ID não configurado para ambiente {ambiente} - não será possível fazer upload/anexar arquivos")
                         else:
                             logger.info(f"[gmail_service] Usando Colleague ID: {colleague_id} para upload")
+                            
+                            # Processa anexos: decodifica base64 para bytes
+                            import base64
+                            arquivos_processados = []
+                            for anexo in anexos:
+                                try:
+                                    conteudo_bytes = base64.b64decode(anexo['conteudo_base64'])
+                                    arquivos_processados.append({
+                                        'bytes': conteudo_bytes,
+                                        'nome': anexo['nome']
+                                    })
+                                    logger.info(f"[gmail_service] Anexo {anexo['nome']} processado com sucesso ({len(conteudo_bytes)} bytes)")
+                                except Exception as e:
+                                    logger.error(f"[gmail_service] Erro ao processar anexo {anexo['nome']}: {str(e)} - continuando sem anexo")
+                            
                             # Para cada arquivo, faz upload e anexa ao chamado
-                            for arquivo in arquivos_baixados:
+                            for arquivo in arquivos_processados:
                                 try:
                                     logger.info(f"[gmail_service] Fazendo upload do arquivo: {arquivo['nome']}")
                                     resultado_upload = fluig_core.upload_arquivo_fluig(
@@ -408,6 +549,194 @@ class GmailMonitorService:
             logger.debug(f"[gmail_service] Traceback: {traceback.format_exc()}")
             return None
     
+    def _abrir_chamado_classificado(
+        self, 
+        assunto: str, 
+        corpo: str, 
+        email: str, 
+        anexos: List[Dict[str, str]], 
+        configs: Dict[str, str],
+        ambiente: str
+    ) -> Optional[str]:
+        """Abre chamado classificado usando configurações salvas"""
+        try:
+            logger.info(f"[gmail_service] Abrindo chamado classificado para email: {email}")
+            
+            # Busca telefone
+            telefone = buscar_telefone_no_diretorio(email)
+            
+            # Converte anexos para formato AnexoBase64
+            from src.modelo_dados.modelos_fluig import AnexoBase64, AberturaChamadoClassificado
+            anexos_base64 = None
+            if anexos and len(anexos) > 0:
+                anexos_base64 = [
+                    AnexoBase64(nome=anexo['nome'], conteudo_base64=anexo['conteudo_base64'])
+                    for anexo in anexos
+                ]
+                logger.info(f"[gmail_service] Processando {len(anexos_base64)} anexo(s) em base64")
+            
+            # Busca colleagueId do usuario_responsavel se fornecido
+            target_assignee = None
+            usuario_responsavel = configs.get('usuario_responsavel', '').strip()
+            if usuario_responsavel:
+                logger.info(f"[gmail_service] Buscando colleagueId para usuario_responsavel: {usuario_responsavel}")
+                fluig_core_temp = FluigCore(ambiente=ambiente)
+                dados_colleague = fluig_core_temp.Dataset_config(dataset_id="colleague", user=usuario_responsavel)
+                
+                if not hasattr(dados_colleague, 'status_code') and dados_colleague and dados_colleague.get('content'):
+                    content = dados_colleague.get('content', [])
+                    if isinstance(content, list) and len(content) > 0:
+                        colleague_data = content[0]
+                    elif isinstance(content, dict) and 'values' in content:
+                        values = content.get('values', [])
+                        if values and len(values) > 0:
+                            colleague_data = values[0]
+                        else:
+                            colleague_data = None
+                    else:
+                        colleague_data = None
+                    
+                    if colleague_data:
+                        target_assignee = colleague_data.get('colleagueId', '')
+                        if target_assignee:
+                            logger.info(f"[gmail_service] ColleagueId encontrado para usuario_responsavel: {target_assignee}")
+                        else:
+                            logger.warning(f"[gmail_service] ColleagueId não encontrado nos dados para usuario_responsavel: {usuario_responsavel}")
+                    else:
+                        logger.warning(f"[gmail_service] Nenhum dado encontrado no dataset colleague para usuario_responsavel: {usuario_responsavel}")
+                else:
+                    logger.warning(f"[gmail_service] Erro ao buscar colleagueId para usuario_responsavel: {usuario_responsavel}")
+            
+            # Cria item de chamado classificado
+            item_classificado = AberturaChamadoClassificado(
+                titulo=assunto,
+                descricao=corpo,
+                usuario=email,
+                telefone=telefone if telefone else None,
+                servico=configs.get('servico_id', '').strip(),
+                anexos=anexos_base64
+            )
+            
+            # Abre chamado classificado
+            fluig_core = FluigCore(ambiente=ambiente)
+            resposta = fluig_core.AberturaDeChamado(
+                tipo_chamado="classificado", 
+                Item=item_classificado,
+                target_assignee=target_assignee
+            )
+            
+            if resposta and resposta.get('sucesso'):
+                dados = resposta.get('dados', {})
+                if dados and isinstance(dados, dict):
+                    process_instance_id = dados.get('processInstanceId') or dados.get('process_instance_id')
+                
+                if process_instance_id:
+                    logger.info(f"[gmail_service] Chamado classificado aberto com sucesso - ID: {process_instance_id}")
+                    
+                    # Salva histórico inicial do chamado (chamados abertos via email são monitorados)
+                    try:
+                        logger.info(f"[gmail_service] Salvando histórico inicial do chamado {process_instance_id}...")
+                        from src.historico_monitor.historico_manager import HistoricoManager
+                        historico_manager = HistoricoManager()
+                        
+                        # Obtém histórico inicial do Fluig
+                        historico_inicial = fluig_core.obter_historico_chamado(process_instance_id)
+                        
+                        if historico_inicial:
+                            sucesso_salvamento = historico_manager.salvar_historico(
+                                process_instance_id=process_instance_id,
+                                historico_data=historico_inicial,
+                                ambiente=ambiente,
+                                email_remetente=email
+                            )
+                            if sucesso_salvamento:
+                                logger.info(f"[gmail_service] Histórico inicial do chamado {process_instance_id} salvo com sucesso")
+                            else:
+                                logger.warning(f"[gmail_service] Falha ao salvar histórico inicial do chamado {process_instance_id}")
+                        else:
+                            logger.warning(f"[gmail_service] Não foi possível obter histórico inicial do chamado {process_instance_id}")
+                    except Exception as e:
+                        # Não falha a abertura do chamado se houver erro ao salvar histórico
+                        logger.error(f"[gmail_service] Erro ao salvar histórico inicial do chamado {process_instance_id}: {str(e)}")
+                        import traceback
+                        logger.debug(f"[gmail_service] Traceback: {traceback.format_exc()}")
+                    
+                    # Processar e anexar arquivos se houver anexos
+                    if anexos and len(anexos) > 0 and process_instance_id:
+                        logger.info(f"[gmail_service] Iniciando anexo de {len(anexos)} arquivo(s) ao chamado {process_instance_id}")
+                        
+                        # Obtém colleague_id baseado no ambiente
+                        if ambiente == "PRD":
+                            colleague_id = ConfigEnvSetings.USER_COLLEAGUE_ID
+                        else:  # QLD
+                            colleague_id = ConfigEnvSetings.USER_COLLEAGUE_ID_QLD
+                        
+                        if not colleague_id or colleague_id == "":
+                            logger.error(f"[gmail_service] Colleague ID não configurado para ambiente {ambiente} - não será possível fazer upload/anexar arquivos")
+                        else:
+                            logger.info(f"[gmail_service] Usando Colleague ID: {colleague_id} para upload")
+                            
+                            # Processa anexos: decodifica base64 para bytes
+                            import base64
+                            arquivos_processados = []
+                            for anexo in anexos:
+                                try:
+                                    conteudo_bytes = base64.b64decode(anexo['conteudo_base64'])
+                                    arquivos_processados.append({
+                                        'bytes': conteudo_bytes,
+                                        'nome': anexo['nome']
+                                    })
+                                    logger.info(f"[gmail_service] Anexo {anexo['nome']} processado com sucesso ({len(conteudo_bytes)} bytes)")
+                                except Exception as e:
+                                    logger.error(f"[gmail_service] Erro ao processar anexo {anexo['nome']}: {str(e)} - continuando sem anexo")
+                            
+                            # Para cada arquivo, faz upload e anexa ao chamado
+                            for arquivo in arquivos_processados:
+                                try:
+                                    logger.info(f"[gmail_service] Fazendo upload do arquivo: {arquivo['nome']}")
+                                    resultado_upload = fluig_core.upload_arquivo_fluig(
+                                        arquivo_bytes=arquivo['bytes'],
+                                        nome_arquivo=arquivo['nome'],
+                                        colleague_id=colleague_id
+                                    )
+                                    
+                                    if resultado_upload:
+                                        logger.info(f"[gmail_service] Upload do arquivo {arquivo['nome']} realizado com sucesso")
+                                        
+                                        # Anexa ao chamado
+                                        logger.info(f"[gmail_service] Anexando arquivo {arquivo['nome']} ao chamado {process_instance_id}")
+                                        sucesso_anexo = fluig_core.anexar_arquivo_chamado(
+                                            process_instance_id=process_instance_id,
+                                            nome_arquivo=arquivo['nome']
+                                        )
+                                        
+                                        if sucesso_anexo:
+                                            logger.info(f"[gmail_service] Arquivo {arquivo['nome']} anexado ao chamado {process_instance_id}")
+                                        else:
+                                            logger.error(f"[gmail_service] Falha ao anexar arquivo {arquivo['nome']} ao chamado {process_instance_id}")
+                                    else:
+                                        logger.error(f"[gmail_service] Falha no upload do arquivo {arquivo['nome']}")
+                                        
+                                except Exception as e:
+                                    logger.error(f"[gmail_service] Erro ao processar anexo {arquivo['nome']}: {str(e)} - continuando com próximo arquivo")
+                                    import traceback
+                                    logger.debug(f"[gmail_service] Traceback: {traceback.format_exc()}")
+                    
+                    # Retorna o processInstanceId como string JSON
+                    return json.dumps(process_instance_id)
+                else:
+                    logger.error(f"[gmail_service] Chamado classificado aberto mas processInstanceId não encontrado")
+                    return None
+            else:
+                logger.error(f"[gmail_service] Falha ao abrir chamado classificado: {resposta.get('texto', 'Erro desconhecido') if resposta else 'Resposta vazia'}")
+                return None
+            
+        except Exception as e:
+            logger.error(f"[gmail_service] Erro ao abrir chamado classificado: {str(e)}")
+            import traceback
+            logger.debug(f"[gmail_service] Traceback: {traceback.format_exc()}")
+            return None
+    
     def _processar_resposta_chamado(self, resposta: Any, email_remetente: str, assunto_original: str) -> bool:
         """
         Processa a resposta da API e envia email de confirmação
@@ -437,21 +766,38 @@ class GmailMonitorService:
             elif resposta.get('dados', {}).get('processInstanceId'):
                 process_instance_id = resposta['dados']['processInstanceId']
             elif resposta.get('status') in ['rejeitado', 'erro']:
-                logger.warning(f"[gmail_service] Chamado rejeitado: {resposta.get('mensagem', 'Erro genérico')}")
+                mensagem_erro = resposta.get('mensagem', 'Erro genérico')
+                logger.warning(f"[gmail_service] Chamado rejeitado: {mensagem_erro}")
+                
+                # Criar template HTML formatado para erro
+                html_template = criar_template_email_erro(mensagem_erro)
+                
+                # Corpo em texto plano (fallback)
+                corpo_texto = f"O chamado não pôde ser aberto.\n\nMotivo: {mensagem_erro}"
+                
                 enviar_email(
                     email_remetente,
-                    "Chamado Não Aprovado",
-                    f"O chamado não pôde ser aberto.\nMotivo: {resposta.get('mensagem', 'Erro genérico')}"
+                    "Chamado Não Pôde Ser Aberto",
+                    corpo_texto,
+                    html=html_template
                 )
                 return False
         
         if process_instance_id:
             link = f"https://fluig.uisa.com.br/portal/p/1/pageworkflowview?app_ecm_workflowview_detailsProcessInstanceID={process_instance_id}"
-            logger.info(f"[gmail_service] Chamado criado com sucesso - ID: {process_instance_id}")
+            logger.info(f"[gmail_service] Chamado criado - ID: {process_instance_id}")
+            
+            # Criar template HTML formatado
+            html_template = criar_template_email_chamado(process_instance_id, link, email_remetente)
+            
+            # Corpo em texto plano (fallback para clientes que não suportam HTML)
+            corpo_texto = f"Chamado criado com sucesso.\n\nNúmero: {process_instance_id}\n\nLink: {link}\n\nO chamado foi criado com sucesso! As atualizações do chamado serão enviadas para o email {email_remetente}."
+            
             enviar_email(
                 email_remetente,
-                f"Chamado Aberto - #{process_instance_id}",
-                f"Chamado criado com sucesso.\nNúmero: {process_instance_id}\nLink: {link}"
+                f"Chamado Criado - #{process_instance_id}",
+                corpo_texto,
+                html=html_template
             )
             return True
         else:
@@ -465,18 +811,13 @@ class GmailMonitorService:
                 self.gmail_service.users().threads().modify(
                     userId='me',
                     id=thread_id,
-                    body={
-                        'addLabelIds': [self.label_id],
-                        'removeLabelIds': ['UNREAD']
-                    }
-                ).execute()
+                    body={'addLabelIds': [self.label_id],'removeLabelIds': ['UNREAD']}).execute()
             else:
                 # Se não tem label, apenas marca como lido
                 self.gmail_service.users().threads().modify(
                     userId='me',
                     id=thread_id,
-                    body={'removeLabelIds': ['UNREAD']}
-                ).execute()
+                    body={'removeLabelIds': ['UNREAD']}).execute()
         except Exception as e:
             logger.error(f"[gmail_service] Erro ao adicionar label: {str(e)}")
             # Tenta apenas marcar como lido
@@ -484,7 +825,6 @@ class GmailMonitorService:
                 self.gmail_service.users().threads().modify(
                     userId='me',
                     id=thread_id,
-                    body={'removeLabelIds': ['UNREAD']}
-                ).execute()
+                    body={'removeLabelIds': ['UNREAD']}).execute()
             except:
                 pass

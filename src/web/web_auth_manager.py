@@ -43,6 +43,12 @@ def realizar_login(ambiente: str = "PRD", usuario: str = None, senha: str = None
     Returns:
         True se login foi bem-sucedido, False caso contrário
     """
+    # Verifica se login via browser está habilitado
+    browser_login_enabled = ConfigEnvSetings.BROWSER_LOGIN_ENABLED.lower() in ("true", "1", "yes")
+    if not browser_login_enabled:
+        logger.error("[realizar_login] Login via browser está DESABILITADO (BROWSER_LOGIN_ENABLED=false). Use OAuth 1.0 para autenticação.")
+        return False
+    
     driver = None
     try:
         logger.info(f"[realizar_login] Iniciando login para ambiente {ambiente}, usuário: {usuario}")
@@ -141,7 +147,7 @@ def _renovar_cookies_periodicamente():
                 )
                 thread_login.start()
                 threads_login.append(thread_login)
-                
+            
                 # Pequeno delay entre inícios de threads para evitar sobrecarga
                 import time
                 time.sleep(2)
@@ -172,6 +178,12 @@ def iniciar_login_automatico():
     Deve ser chamada na inicialização da aplicação
     """
     global _thread_renovacao
+    
+    # Verifica se login via browser está habilitado
+    browser_login_enabled = ConfigEnvSetings.BROWSER_LOGIN_ENABLED.lower() in ("true", "1", "yes")
+    if not browser_login_enabled:
+        logger.info("[iniciar_login_automatico] Login via browser está DESABILITADO (BROWSER_LOGIN_ENABLED=false). Renovação automática de cookies não será iniciada.")
+        return
     
     with _lock:
         if _thread_renovacao is not None and _thread_renovacao.is_alive():
@@ -219,6 +231,12 @@ def garantir_autenticacao(ambiente: str = "PRD", forcar_login: bool = False, usu
     Returns:
         Tupla (sucesso: bool, cookies: Optional[List[Dict]])
     """
+    # Verifica se login via browser está habilitado
+    browser_login_enabled = ConfigEnvSetings.BROWSER_LOGIN_ENABLED.lower() in ("true", "1", "yes")
+    if not browser_login_enabled:
+        logger.error("[garantir_autenticacao] Login via browser está DESABILITADO (BROWSER_LOGIN_ENABLED=false). Use OAuth 1.0 para autenticação.")
+        return (False, None)
+    
     try:
         logger.info(f"[garantir_autenticacao] Verificando autenticação para ambiente {ambiente}, usuário: {usuario}")
         

@@ -15,19 +15,24 @@ class DetalhesChamado(BaseModel):
 class DetalhesServicos(BaseModel):
     id_servico: str
 
+class AnexoBase64(BaseModel):
+    """Modelo para anexo em base64"""
+    nome: str
+    conteudo_base64: str  # Conteúdo do arquivo em base64
+
 class AberturaChamado(BaseModel):
     titulo: str
     descricao: str
     usuario: str
     telefone: str | None = None
-    anexos_ids: list[str] | None = None  # Lista de IDs dos arquivos no Google Drive
+    anexos: list[AnexoBase64] | None = None  # Lista de anexos em base64
 
 class AberturaChamadoEmail(BaseModel):
     titulo: str
     descricao: str
     usuario: str
     telefone: str | None = None
-    file_id: str | None = None
+    anexos: list[AnexoBase64] | None = None  # Lista de anexos em base64
 
 # Dados para a rota fluig/chamado/abrir-classificado
 class AberturaChamadoClassificado(BaseModel):
@@ -36,6 +41,7 @@ class AberturaChamadoClassificado(BaseModel):
     usuario: str
     telefone: str | None = None
     servico: str
+    anexos: list[AnexoBase64] | None = None  # Lista de anexos em base64
 
 
 class DadosEmail(BaseModel):

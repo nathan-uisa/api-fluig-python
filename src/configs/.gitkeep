@@ -1,0 +1,2 @@
+# Este arquivo garante que a pasta seja mantida no git
+# Os arquivos .ini são ignorados pelo .gitignore, mas a estrutura da pasta é preservada

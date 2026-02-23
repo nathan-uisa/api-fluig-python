@@ -6,7 +6,6 @@ from src.modelo_dados.modelos_fluig import (
 )
 from src.fluig.fluig_core import FluigCore
 from src.web.web_servicos_fluig import obter_detalhes_servico_fluig
-from src.web.web_auth_manager import obter_cookies_validos
 from src.modelo_dados.modelo_settings import ConfigEnvSetings
 from src.utilitarios_centrais.logger import logger
 from src.utilitarios_centrais.fake_user import FakeUser
@@ -14,7 +13,7 @@ from src.utilitarios_centrais.fake_user import FakeUser
 
 def _email_na_lista_fakeuser(email: str) -> bool:
     """
-    Verifica se o email está na lista EMAILS_LIST do .env
+    Verifica se o email está na lista EMAILS_LIST (arquivo de configuração ou .env)
     
     Args:
         email: Email do solicitante
@@ -23,7 +22,16 @@ def _email_na_lista_fakeuser(email: str) -> bool:
         True se o email está na lista, False caso contrário
     """
     try:
-        emails_list_str = ConfigEnvSetings.EMAILS_LIST
+        # Tenta carregar do arquivo de configuração primeiro
+        from src.configs.config_manager import get_config_manager_gerais
+        config_manager = get_config_manager_gerais()
+        configs_gerais = config_manager.carregar_configuracao()
+        emails_list_str = configs_gerais.get('emails_list', '')
+        
+        # Se não houver no arquivo INI, usa do .env
+        if not emails_list_str or not emails_list_str.strip():
+            emails_list_str = getattr(ConfigEnvSetings, 'EMAILS_LIST', '')
+        
         if not emails_list_str or not emails_list_str.strip():
             return False
         
@@ -157,7 +165,7 @@ def PayloadChamadoNormal(Item: AberturaChamado, ambiente: str = "PRD", usuario_a
         return None
 
 
-def PayloadChamadoClassificado(Item: AberturaChamadoClassificado, ambiente: str = "PRD", usuario_atendido: Optional[str] = None) -> Optional[Dict[str, Any]]:
+def PayloadChamadoClassificado(Item: AberturaChamadoClassificado, ambiente: str = "PRD", usuario_atendido: Optional[str] = None, target_assignee: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """
     Monta payload para abertura de chamado classificado no Fluig
     
@@ -179,14 +187,7 @@ def PayloadChamadoClassificado(Item: AberturaChamadoClassificado, ambiente: str 
     """
     try:
         logger.info(f"[PayloadChamadoClassificado] Iniciando montagem de payload - Usuário: {Item.usuario}, Serviço: {Item.servico}")
-
-        usuario_auth = ConfigEnvSetings.FLUIG_ADMIN_USER
-        senha_auth = ConfigEnvSetings.FLUIG_ADMIN_PASS
-        cookies = obter_cookies_validos(ambiente, forcar_login=False, usuario=usuario_auth, senha=senha_auth)
-        
-        if not cookies:
-            logger.error("[PayloadChamadoClassificado] Falha ao obter autenticação válida")
-            return None
+        logger.info(f"[PayloadChamadoClassificado] Usando autenticação OAuth 1.0")
         
         # Verifica se o email está na lista de FakeUser
         usar_fake_user = _email_na_lista_fakeuser(Item.usuario)
@@ -201,7 +202,9 @@ def PayloadChamadoClassificado(Item: AberturaChamadoClassificado, ambiente: str 
                 return None
 
             colleague_id = fake_content.get('colleagueId', '')
-            target_assignee = fake_content.get('targetAssignee', colleague_id)
+            # Se target_assignee não foi fornecido, usa o do FakeUser ou colleague_id
+            if target_assignee is None:
+                target_assignee = fake_content.get('targetAssignee', colleague_id)
             colleague_name = fake_content.get('Nome', '')
             colleague_email = fake_content.get('Email', '')
             
@@ -247,7 +250,9 @@ def PayloadChamadoClassificado(Item: AberturaChamadoClassificado, ambiente: str 
             colleague_id = colleague_data.get('colleagueId', '')
             colleague_name = colleague_data.get('colleagueName', '')
             colleague_email = colleague_data.get('mail', '')
-            target_assignee = colleague_id
+            # Se target_assignee não foi fornecido, usa o colleague_id do solicitante
+            if target_assignee is None:
+                target_assignee = colleague_id
             
             if not colleague_id:
                 logger.error(f"[PayloadChamadoClassificado] colleagueId não encontrado para usuário '{Item.usuario}'")
@@ -282,8 +287,7 @@ def PayloadChamadoClassificado(Item: AberturaChamadoClassificado, ambiente: str 
         logger.info(f"[PayloadChamadoClassificado] Buscando detalhes do serviço ID: {Item.servico}...")
         detalhes_servico = obter_detalhes_servico_fluig(
             document_id=Item.servico,
-            ambiente=ambiente,
-            cookies_list=cookies
+            ambiente=ambiente
         )
         
         if not detalhes_servico or not detalhes_servico.get('content', {}).get('values'):

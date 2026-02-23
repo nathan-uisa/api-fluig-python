@@ -21,7 +21,7 @@ def ConfigurarDriver(headless: bool = True):
     try:
         # Detecta se está rodando em Docker ou Cloud Run
         is_docker = os.path.exists('/.dockerenv') or os.environ.get('K_SERVICE') or os.environ.get('DOCKER_CONTAINER')
-        
+
         if is_docker or os.environ.get('K_SERVICE'):
             logger.info("[ConfigurarDriver] Ambiente Docker/Cloud Run detectado. Forçando modo headless.")
             headless = True

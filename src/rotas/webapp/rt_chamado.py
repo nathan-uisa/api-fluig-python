@@ -1,26 +1,171 @@
 from fastapi import APIRouter, Request, HTTPException, UploadFile, File, Form, Header
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
-from typing import Optional
+from typing import Optional, Dict
 from pydantic import BaseModel
 from src.modelo_dados.modelo_sites import DadosFuncionario, DadosFuncionarioForm, DadosChamado, PayloadFuncionario
 from src.modelo_dados.modelos_fluig import AberturaChamadoClassificado
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 from src.utilitarios_centrais.logger import logger
-from src.site.planilha import Planilha, PATH_TO_TEMP
+from src.site.planilha import Planilha, PATH_TO_TEMP, obter_caminho_temp_por_email
 from src.site.abrir_chamados import AbrirChamados
 from src.fluig.fluig_core import FluigCore
 from src.web.web_servicos_fluig import obter_detalhes_servico_fluig
-from src.web.web_auth_manager import obter_cookies_validos
 from src.utilitarios_centrais.json_utils import salvar_detalhes_servico_json
 from src.modelo_dados.modelo_settings import ConfigEnvSetings
+from src.configs.user_template_manager import get_user_template_manager
 import os
 import tempfile
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 router = APIRouter()
 templates = Jinja2Templates(directory="src/site/templates")
+
+# ==================== SISTEMA DE CACHE ====================
+# Cache em memória para chamados
+_chamados_cache: Dict[str, Dict] = {}
+_cache_lock = threading.Lock()
+CACHE_TTL_MINUTES = 5  # Cache válido por 5 minutos
+
+def _gerar_chave_cache(tipo: str, identificador: str) -> str:
+    """Gera chave única para o cache"""
+    return f"{tipo}:{identificador}"
+
+def _obter_do_cache(chave: str) -> Optional[Dict]:
+    """Obtém dados do cache se ainda válidos"""
+    with _cache_lock:
+        if chave not in _chamados_cache:
+            return None
+        
+        cache_entry = _chamados_cache[chave]
+        agora = datetime.now()
+        
+        # Verifica se cache expirou
+        if agora > cache_entry['expira_em']:
+            del _chamados_cache[chave]
+            logger.debug(f"[Cache] Cache expirado para chave: {chave}")
+            return None
+        
+        logger.debug(f"[Cache] Cache hit para chave: {chave}")
+        return cache_entry['dados']
+
+def _salvar_no_cache(chave: str, dados: Dict):
+    """Salva dados no cache com TTL"""
+    with _cache_lock:
+        expira_em = datetime.now() + timedelta(minutes=CACHE_TTL_MINUTES)
+        _chamados_cache[chave] = {
+            'dados': dados,
+            'expira_em': expira_em,
+            'criado_em': datetime.now()
+        }
+        logger.debug(f"[Cache] Dados salvos no cache para chave: {chave} (expira em {CACHE_TTL_MINUTES} minutos)")
+
+def _limpar_cache_expirado():
+    """Remove entradas expiradas do cache (limpeza periódica)"""
+    with _cache_lock:
+        agora = datetime.now()
+        chaves_remover = [
+            chave for chave, entry in _chamados_cache.items()
+            if agora > entry['expira_em']
+        ]
+        for chave in chaves_remover:
+            del _chamados_cache[chave]
+        if chaves_remover:
+            logger.debug(f"[Cache] Removidas {len(chaves_remover)} entradas expiradas do cache")
+
+# ==================== BUSCA PARALELA DE DETALHES ====================
+def _buscar_detalhes_paralelo(fluig_core: FluigCore, items: list, max_workers: int = 10) -> list:
+    """
+    Busca detalhes de múltiplos chamados em paralelo usando ThreadPoolExecutor
+    
+    Args:
+        fluig_core: Instância de FluigCore
+        items: Lista de itens de chamados (com processInstanceId)
+        max_workers: Número máximo de threads paralelas (padrão: 10)
+    
+    Returns:
+        Lista de chamados com detalhes completos
+    """
+    chamados_detalhados = []
+    
+    def buscar_detalhe(item):
+        """Função auxiliar para buscar detalhes de um chamado"""
+        process_instance_id = item.get('processInstanceId')
+        if not process_instance_id:
+            return None
+        
+        try:
+            detalhes = fluig_core.obter_detalhes_chamado(
+                process_instance_id=process_instance_id,
+                usuario=ConfigEnvSetings.FLUIG_ADMIN_USER
+            )
+            return {
+                'item': item,
+                'detalhes': detalhes,
+                'process_instance_id': process_instance_id,
+                'sucesso': True
+            }
+        except Exception as e:
+            logger.error(f"[_buscar_detalhes_paralelo] Erro ao buscar detalhes do chamado {process_instance_id}: {str(e)}")
+            return {
+                'item': item,
+                'detalhes': None,
+                'process_instance_id': process_instance_id,
+                'sucesso': False,
+                'erro': str(e)
+            }
+    
+    # Executa buscas em paralelo
+    logger.info(f"[_buscar_detalhes_paralelo] Iniciando busca paralela de {len(items)} chamado(s) com {max_workers} workers")
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(buscar_detalhe, item): item for item in items}
+        
+        for future in as_completed(futures):
+            resultado = future.result()
+            if not resultado:
+                continue
+            
+            item = resultado['item']
+            detalhes = resultado['detalhes']
+            process_instance_id = resultado['process_instance_id']
+            
+            if detalhes:
+                chamado_completo = {
+                    "processInstanceId": process_instance_id,
+                    "processId": item.get('processId', ''),
+                    "processDescription": item.get('processDescription', ''),
+                    "status": item.get('status', ''),
+                    "slaStatus": item.get('slaStatus', ''),
+                    "startDate": item.get('startDate', ''),
+                    "assignStartDate": item.get('assignStartDate', ''),
+                    "requester": item.get('requester', {}),
+                    "assignee": item.get('assignee', {}),
+                    "state": item.get('state', {}),
+                    "detalhes": detalhes
+                }
+            else:
+                # Se não conseguir detalhes, retorna pelo menos os dados básicos
+                chamado_completo = {
+                    "processInstanceId": process_instance_id,
+                    "processId": item.get('processId', ''),
+                    "processDescription": item.get('processDescription', ''),
+                    "status": item.get('status', ''),
+                    "slaStatus": item.get('slaStatus', ''),
+                    "startDate": item.get('startDate', ''),
+                    "assignStartDate": item.get('assignStartDate', ''),
+                    "requester": item.get('requester', {}),
+                    "assignee": item.get('assignee', {}),
+                    "state": item.get('state', {}),
+                    "detalhes": None
+                }
+            
+            chamados_detalhados.append(chamado_completo)
+    
+    logger.info(f"[_buscar_detalhes_paralelo] Busca paralela concluída: {len(chamados_detalhados)} chamado(s) processado(s)")
+    return chamados_detalhados
 
 
 def buscar_funcionario(email_ou_chapa: str, ambiente: str = "PRD", obrigatorio: bool = True) -> Optional[DadosFuncionario]:
@@ -103,8 +248,6 @@ def buscar_funcionario(email_ou_chapa: str, ambiente: str = "PRD", obrigatorio: 
         if obrigatorio:
             raise ValueError(f"Erro ao buscar funcionário: {str(e)}")
         return None
-
-
 
 
 def buscar_colleague_id(email: str, ambiente: str = "PRD") -> Optional[str]:
@@ -286,6 +429,435 @@ async def chamado(request: Request):
         )
 
 
+@router.get("/configuracoes", response_class=HTMLResponse)
+async def configuracoes(request: Request):
+    """Página de configurações"""
+    user = request.session.get('user')
+    if not user:
+        return RedirectResponse(url="/login")
+    
+    # Verificar se o usuário tem permissão (apenas nathan.azevedo@uisa.com.br)
+    user_email = user.get('email', '').lower().strip()
+    email_permitido = 'nathan.azevedo@uisa.com.br'
+    
+    if user_email != email_permitido:
+        return templates.TemplateResponse(
+            "configuracoes.html",
+            {
+                "request": request,
+                "user": user,
+                "configs": {},
+                "sem_permissao": True
+            }
+        )
+    
+    # Carregar primeira configuração salva (configurações globais)
+    from src.configs.config_manager import get_config_manager
+    config_manager = get_config_manager()
+    configs = config_manager.carregar_configuracao()
+    
+    return templates.TemplateResponse(
+        "configuracoes.html",
+        {
+            "request": request,
+            "user": user,
+            "configs": configs,
+            "sem_permissao": False
+        }
+    )
+
+
+@router.post("/configuracoes/salvar", response_class=JSONResponse)
+async def salvar_configuracoes(
+    request: Request,
+    email_solicitante: str = Form(None),
+    usuario_responsavel: str = Form(None),
+    servico_id: str = Form(None),
+    servico: str = Form(None),
+    ds_grupo_servico: str = Form(None),
+    item_servico: str = Form(None),
+    urg_alta: str = Form(None),
+    urg_media: str = Form(None),
+    urg_baixa: str = Form(None),
+    ds_resp_servico: str = Form(None),
+    ds_tipo: str = Form(None),
+    ds_urgencia: str = Form(None),
+    equipe_responsavel: str = Form(None),
+    status: str = Form(None),
+    solicitante: str = Form(None)
+):
+    """Salva as configurações de personalização de chamado (configurações globais)"""
+    user = request.session.get('user')
+    if not user:
+        return JSONResponse(
+            status_code=401,
+            content={"sucesso": False, "erro": "Usuário não autenticado"}
+        )
+    
+    # Verificar permissão
+    user_email = user.get('email', '').lower().strip()
+    email_permitido = 'nathan.azevedo@uisa.com.br'
+    if user_email != email_permitido:
+        return JSONResponse(
+            status_code=403,
+            content={"sucesso": False, "erro": "Permissão negada: apenas usuários autorizados podem acessar esta funcionalidade"}
+        )
+    
+    # Valida se o email_solicitante foi fornecido (obrigatório para identificar a configuração)
+    if not email_solicitante or not email_solicitante.strip():
+        return JSONResponse(
+            status_code=400,
+            content={"sucesso": False, "erro": "Email solicitante é obrigatório para salvar a configuração"}
+        )
+    
+    try:
+        from src.configs.config_manager import get_config_manager
+        config_manager = get_config_manager()
+        
+        sucesso = config_manager.salvar_configuracao(
+            email_solicitante=email_solicitante,
+            usuario_responsavel=usuario_responsavel,
+            servico_id=servico_id,
+            servico=servico,
+            ds_grupo_servico=ds_grupo_servico,
+            item_servico=item_servico,
+            urg_alta=urg_alta,
+            urg_media=urg_media,
+            urg_baixa=urg_baixa,
+            ds_resp_servico=ds_resp_servico,
+            ds_tipo=ds_tipo,
+            ds_urgencia=ds_urgencia,
+            equipe_responsavel=equipe_responsavel,
+            status=status,
+            solicitante=solicitante
+        )
+        
+        if sucesso:
+            return JSONResponse(
+                content={"sucesso": True, "mensagem": "Configurações salvas com sucesso!"}
+            )
+        else:
+            return JSONResponse(
+                status_code=500,
+                content={"sucesso": False, "erro": "Erro ao salvar configurações"}
+            )
+            
+    except Exception as e:
+        import traceback
+        logger.error(f"Erro ao salvar configurações: {str(e)}")
+        logger.debug(f"Traceback: {traceback.format_exc()}")
+        return JSONResponse(
+            status_code=500,
+            content={"sucesso": False, "erro": f"Erro inesperado: {str(e)}"}
+        )
+
+
+@router.get("/configuracoes/carregar", response_class=JSONResponse)
+async def carregar_configuracoes(request: Request, email: Optional[str] = None):
+    """Carrega as configurações salvas (configurações globais)"""
+    user = request.session.get('user')
+    if not user:
+        return JSONResponse(
+            status_code=401,
+            content={"sucesso": False, "erro": "Usuário não autenticado"}
+        )
+    
+    # Verificar permissão
+    user_email = user.get('email', '').lower().strip()
+    email_permitido = 'nathan.azevedo@uisa.com.br'
+    if user_email != email_permitido:
+        return JSONResponse(
+            status_code=403,
+            content={"sucesso": False, "erro": "Permissão negada: apenas usuários autorizados podem acessar esta funcionalidade"}
+        )
+    
+    try:
+        from src.configs.config_manager import get_config_manager
+        config_manager = get_config_manager()
+        # Se email fornecido na query, carrega configuração específica, senão carrega a primeira
+        configs = config_manager.carregar_configuracao(email)
+        
+        return JSONResponse(
+            content={"sucesso": True, "configs": configs}
+        )
+        
+    except Exception as e:
+        import traceback
+        logger.error(f"Erro ao carregar configurações: {str(e)}")
+        logger.debug(f"Traceback: {traceback.format_exc()}")
+        return JSONResponse(
+            status_code=500,
+            content={"sucesso": False, "erro": f"Erro inesperado: {str(e)}"}
+        )
+
+
+@router.get("/configuracoes/listar", response_class=JSONResponse)
+async def listar_configuracoes(request: Request):
+    """Lista todas as configurações salvas (apenas email e serviço)"""
+    user = request.session.get('user')
+    if not user:
+        return JSONResponse(
+            status_code=401,
+            content={"sucesso": False, "erro": "Usuário não autenticado"}
+        )
+    
+    # Verificar permissão
+    user_email = user.get('email', '').lower().strip()
+    email_permitido = 'nathan.azevedo@uisa.com.br'
+    if user_email != email_permitido:
+        return JSONResponse(
+            status_code=403,
+            content={"sucesso": False, "erro": "Permissão negada: apenas usuários autorizados podem acessar esta funcionalidade"}
+        )
+    
+    try:
+        from src.configs.config_manager import get_config_manager
+        config_manager = get_config_manager()
+        lista_configs = config_manager.listar_todas_configuracoes()
+        
+        return JSONResponse(
+            content={"sucesso": True, "configuracoes": lista_configs}
+        )
+        
+    except Exception as e:
+        import traceback
+        logger.error(f"Erro ao listar configurações: {str(e)}")
+        logger.debug(f"Traceback: {traceback.format_exc()}")
+        return JSONResponse(
+            status_code=500,
+            content={"sucesso": False, "erro": f"Erro inesperado: {str(e)}"}
+        )
+
+
+@router.delete("/configuracoes/excluir", response_class=JSONResponse)
+async def excluir_configuracao(request: Request, email: Optional[str] = None):
+    """Exclui uma configuração salva"""
+    user = request.session.get('user')
+    if not user:
+        return JSONResponse(
+            status_code=401,
+            content={"sucesso": False, "erro": "Usuário não autenticado"}
+        )
+    
+    # Verificar permissão
+    user_email = user.get('email', '').lower().strip()
+    email_permitido = 'nathan.azevedo@uisa.com.br'
+    if user_email != email_permitido:
+        return JSONResponse(
+            status_code=403,
+            content={"sucesso": False, "erro": "Permissão negada: apenas usuários autorizados podem acessar esta funcionalidade"}
+        )
+    
+    # Obter email da query string se não foi fornecido como parâmetro
+    if not email:
+        email = request.query_params.get('email')
+    
+    if not email or not email.strip():
+        return JSONResponse(
+            status_code=400,
+            content={"sucesso": False, "erro": "Email é obrigatório para excluir a configuração"}
+        )
+    
+    try:
+        from src.configs.config_manager import get_config_manager
+        config_manager = get_config_manager()
+        sucesso = config_manager.excluir_configuracao(email.strip())
+        
+        if sucesso:
+            return JSONResponse(
+                content={"sucesso": True, "mensagem": "Configuração excluída com sucesso!"}
+            )
+        else:
+            return JSONResponse(
+                status_code=404,
+                content={"sucesso": False, "erro": "Configuração não encontrada"}
+            )
+            
+    except Exception as e:
+        import traceback
+        logger.error(f"Erro ao excluir configuração: {str(e)}")
+        logger.debug(f"Traceback: {traceback.format_exc()}")
+        return JSONResponse(
+            status_code=500,
+            content={"sucesso": False, "erro": f"Erro inesperado: {str(e)}"}
+        )
+
+
+@router.get("/configuracoes/gerais/carregar", response_class=JSONResponse)
+async def carregar_configuracoes_gerais(request: Request):
+    """Carrega as configurações gerais do sistema"""
+    user = request.session.get('user')
+    if not user:
+        return JSONResponse(
+            status_code=401,
+            content={"sucesso": False, "erro": "Usuário não autenticado"}
+        )
+    
+    # Verificar permissão
+    user_email = user.get('email', '').lower().strip()
+    email_permitido = 'nathan.azevedo@uisa.com.br'
+    if user_email != email_permitido:
+        return JSONResponse(
+            status_code=403,
+            content={"sucesso": False, "erro": "Permissão negada: apenas usuários autorizados podem acessar esta funcionalidade"}
+        )
+    
+    try:
+        from src.configs.config_manager import get_config_manager_gerais
+        config_manager = get_config_manager_gerais()
+        configs = config_manager.carregar_configuracao()
+        
+        return JSONResponse(
+            content={"sucesso": True, "configs": configs}
+        )
+        
+    except Exception as e:
+        import traceback
+        logger.error(f"Erro ao carregar configurações gerais: {str(e)}")
+        logger.debug(f"Traceback: {traceback.format_exc()}")
+        return JSONResponse(
+            status_code=500,
+            content={"sucesso": False, "erro": f"Erro inesperado: {str(e)}"}
+        )
+
+
+@router.post("/configuracoes/gerais/salvar", response_class=JSONResponse)
+async def salvar_configuracoes_gerais(
+    request: Request,
+    gmail_check_interval: int = Form(None),
+    gmail_monitor_enabled: str = Form(None),
+    black_list_emails: str = Form(None),
+    emails_list: str = Form(None),
+    historico_check_interval_minutes: float = Form(None),
+    historico_check_interval_hours: float = Form(None),
+    historico_monitor_enabled: str = Form(None),
+    historico_exclude_emails: str = Form(None),
+    email_deduplication_patterns: str = Form(None),
+    email_deduplication_emails: str = Form(None)
+):
+    """Salva as configurações gerais do sistema"""
+    user = request.session.get('user')
+    if not user:
+        return JSONResponse(
+            status_code=401,
+            content={"sucesso": False, "erro": "Usuário não autenticado"}
+        )
+    
+    # Verificar permissão
+    user_email = user.get('email', '').lower().strip()
+    email_permitido = 'nathan.azevedo@uisa.com.br'
+    if user_email != email_permitido:
+        return JSONResponse(
+            status_code=403,
+            content={"sucesso": False, "erro": "Permissão negada: apenas usuários autorizados podem acessar esta funcionalidade"}
+        )
+    
+    try:
+        from src.configs.config_manager import get_config_manager_gerais
+        config_manager = get_config_manager_gerais()
+        
+        sucesso = config_manager.salvar_configuracao(
+            gmail_check_interval=gmail_check_interval,
+            gmail_monitor_enabled=gmail_monitor_enabled,
+            black_list_emails=black_list_emails,
+            emails_list=emails_list,
+            historico_check_interval_minutes=historico_check_interval_minutes,
+            historico_check_interval_hours=historico_check_interval_hours,
+            historico_monitor_enabled=historico_monitor_enabled,
+            historico_exclude_emails=historico_exclude_emails,
+            email_deduplication_patterns=email_deduplication_patterns,
+            email_deduplication_emails=email_deduplication_emails
+        )
+        
+        if sucesso:
+            # Reinicia os serviços para aplicar as novas configurações
+            try:
+                from src.gmail_monitor.background_service import reiniciar_monitoramento_gmail
+                from src.historico_monitor.background_service import reiniciar_monitoramento_historico
+                
+                logger.info("[salvar_configuracoes_gerais] Reiniciando serviços para aplicar novas configurações...")
+                reiniciar_monitoramento_gmail()
+                reiniciar_monitoramento_historico()
+                logger.info("[salvar_configuracoes_gerais] Serviços reiniciados com sucesso")
+            except Exception as e:
+                logger.warning(f"[salvar_configuracoes_gerais] Erro ao reiniciar serviços: {str(e)} - configurações salvas mas serviços não reiniciados")
+                # Não falha o salvamento se houver erro ao reiniciar
+            
+            return JSONResponse(
+                content={"sucesso": True, "mensagem": "Configurações gerais salvas com sucesso! Serviços reiniciados para aplicar as mudanças."}
+            )
+        else:
+            return JSONResponse(
+                status_code=500,
+                content={"sucesso": False, "erro": "Erro ao salvar configurações gerais"}
+            )
+            
+    except Exception as e:
+        import traceback
+        logger.error(f"Erro ao salvar configurações gerais: {str(e)}")
+        logger.debug(f"Traceback: {traceback.format_exc()}")
+        return JSONResponse(
+            status_code=500,
+            content={"sucesso": False, "erro": f"Erro inesperado: {str(e)}"}
+        )
+
+
+@router.post("/configuracoes/gerais/reiniciar-servicos", response_class=JSONResponse)
+async def reiniciar_servicos_background(request: Request):
+    """Reinicia os serviços em background (Gmail Monitor e Histórico Monitor) para aplicar novas configurações"""
+    user = request.session.get('user')
+    if not user:
+        return JSONResponse(
+            status_code=401,
+            content={"sucesso": False, "erro": "Usuário não autenticado"}
+        )
+    
+    # Verificar permissão
+    user_email = user.get('email', '').lower().strip()
+    email_permitido = 'nathan.azevedo@uisa.com.br'
+    if user_email != email_permitido:
+        return JSONResponse(
+            status_code=403,
+            content={"sucesso": False, "erro": "Permissão negada: apenas usuários autorizados podem acessar esta funcionalidade"}
+        )
+    
+    try:
+        from src.gmail_monitor.background_service import reiniciar_monitoramento_gmail
+        from src.historico_monitor.background_service import reiniciar_monitoramento_historico
+        
+        logger.info("[reiniciar_servicos_background] Reiniciando serviços em background...")
+        
+        # Reinicia Gmail Monitor
+        try:
+            reiniciar_monitoramento_gmail()
+            logger.info("[reiniciar_servicos_background] Gmail Monitor reiniciado com sucesso")
+        except Exception as e:
+            logger.error(f"[reiniciar_servicos_background] Erro ao reiniciar Gmail Monitor: {str(e)}")
+        
+        # Reinicia Histórico Monitor
+        try:
+            reiniciar_monitoramento_historico()
+            logger.info("[reiniciar_servicos_background] Histórico Monitor reiniciado com sucesso")
+        except Exception as e:
+            logger.error(f"[reiniciar_servicos_background] Erro ao reiniciar Histórico Monitor: {str(e)}")
+        
+        return JSONResponse(
+            content={
+                "sucesso": True, 
+                "mensagem": "Serviços reiniciados com sucesso! As novas configurações foram aplicadas."
+            }
+        )
+        
+    except Exception as e:
+        import traceback
+        logger.error(f"[reiniciar_servicos_background] Erro ao reiniciar serviços: {str(e)}")
+        logger.debug(f"[reiniciar_servicos_background] Traceback: {traceback.format_exc()}")
+        return JSONResponse(
+            status_code=500,
+            content={"sucesso": False, "erro": f"Erro inesperado: {str(e)}"}
+        )
+
+
 @router.post("/chamado")
 async def criar_chamado(
     request: Request,
@@ -405,7 +977,7 @@ async def criar_chamado(
             
             try:
                 # Processar planilha
-                planilha_obj = Planilha(tmp_path)
+                planilha_obj = Planilha(tmp_path, email)
                 linhas_processadas = planilha_obj.criar_base_chamados()
                 
                 if not linhas_processadas:
@@ -658,7 +1230,8 @@ async def carregar_planilha(request: Request, planilha: UploadFile = File(...)):
         
         try:
             # Processar planilha e criar temp.txt
-            planilha_obj = Planilha(tmp_path)
+            email = user.get('email')
+            planilha_obj = Planilha(tmp_path, email)
             planilha_obj.carregar_planilha()  # Isso já cria o temp.txt vazio
             linhas_processadas = planilha_obj.criar_base_chamados()  # Isso preenche o temp.txt
             
@@ -734,8 +1307,12 @@ async def preview_chamados(request: Request, preview_data: PreviewRequest):
         )
     
     try:
-        # Verificar se temp.txt existe
-        if not os.path.exists(PATH_TO_TEMP):
+        # Usar o módulo AbrirChamados para processar
+        abrir_chamados = AbrirChamados(email)
+        
+        # Verificar se temp.txt existe (usando caminho baseado no email)
+        path_to_temp = obter_caminho_temp_por_email(email)
+        if not os.path.exists(path_to_temp):
             return JSONResponse(
                 status_code=400,
                 content={
@@ -743,9 +1320,6 @@ async def preview_chamados(request: Request, preview_data: PreviewRequest):
                     "preview": []
                 }
             )
-        
-        # Usar o módulo AbrirChamados para processar
-        abrir_chamados = AbrirChamados(email)
         
         if not abrir_chamados.carregar_dados_temp():
             return JSONResponse(
@@ -1065,24 +1639,11 @@ async def buscar_detalhes_servico(request: Request, busca: BuscarDetalhesServico
             usuario = ConfigEnvSetings.FLUIG_ADMIN_USER
             senha = ConfigEnvSetings.FLUIG_ADMIN_PASS
             
-            # Obter cookies válidos
-            cookies = obter_cookies_validos(ambiente, forcar_login=False, usuario=usuario, senha=senha)
-            
-            if not cookies:
-                logger.error("[buscar_detalhes_servico] Falha ao obter autenticação válida")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "sucesso": False,
-                        "erro": "Falha ao obter autenticação válida no Fluig"
-                    }
-                )
-            
-            # Buscar detalhes diretamente da função
+            # Buscar detalhes usando OAuth 1.0
+            logger.info("[buscar_detalhes_servico] Buscando detalhes usando OAuth 1.0...")
             detalhes = obter_detalhes_servico_fluig(
                 document_id=documentid,
-                ambiente=ambiente,
-                cookies_list=cookies
+                ambiente=ambiente
             )
             
             if not detalhes:
@@ -1164,6 +1725,7 @@ async def obter_chamados_fila(request: Request):
     """
     Retorna a lista de chamados da fila do usuário logado
     Segue o fluxo: email -> colleagueId -> listar chamados -> detalhes de cada chamado
+    Utiliza cache para melhorar performance
     """
     user = request.session.get('user')
     if not user:
@@ -1179,6 +1741,20 @@ async def obter_chamados_fila(request: Request):
             content={"sucesso": False, "erro": "Email do usuário não encontrado"}
         )
     
+    # Limpar cache expirado periodicamente
+    _limpar_cache_expirado()
+    
+    # Verificar cache
+    chave_cache = _gerar_chave_cache('fila', email)
+    dados_cache = _obter_do_cache(chave_cache)
+    
+    if dados_cache:
+        logger.info(f"[obter_chamados_fila] Retornando dados do cache para {email}")
+        return JSONResponse(
+            status_code=200,
+            content=dados_cache
+        )
+    
     try:
         ambiente = "PRD"
         
@@ -1188,9 +1764,11 @@ async def obter_chamados_fila(request: Request):
         
         if not colleague_id:
             logger.warning(f"[obter_chamados_fila] colleagueId não encontrado para: {email}")
+            resposta_vazia = {"sucesso": True, "chamados": [], "erro": "ColleagueId não encontrado para o usuário"}
+            _salvar_no_cache(chave_cache, resposta_vazia)
             return JSONResponse(
                 status_code=200,
-                content={"sucesso": True, "chamados": [], "erro": "ColleagueId não encontrado para o usuário"}
+                content=resposta_vazia
             )
         
         logger.info(f"[obter_chamados_fila] colleagueId encontrado: {colleague_id}")
@@ -1205,93 +1783,41 @@ async def obter_chamados_fila(request: Request):
         
         if not chamados_lista:
             logger.info(f"[obter_chamados_fila] listar_chamados_tasks retornou None ou vazio")
+            resposta_vazia = {"sucesso": True, "chamados": []}
+            _salvar_no_cache(chave_cache, resposta_vazia)
             return JSONResponse(
                 status_code=200,
-                content={"sucesso": True, "chamados": []}
+                content=resposta_vazia
             )
         
         items = chamados_lista.get('items', [])
         if not items:
+            resposta_vazia = {"sucesso": True, "chamados": []}
+            _salvar_no_cache(chave_cache, resposta_vazia)
             return JSONResponse(
                 status_code=200,
-                content={"sucesso": True, "chamados": []}
+                content=resposta_vazia
             )
         
         logger.info(f"[obter_chamados_fila] {len(items)} chamado(s) encontrado(s)")
         
-        # 3. Buscar detalhes de cada chamado
-        chamados_detalhados = []
-        for item in items:
-            process_instance_id = item.get('processInstanceId')
-            if not process_instance_id:
-                continue
-            
-            try:
-                logger.debug(f"[obter_chamados_fila] Buscando detalhes do chamado {process_instance_id}")
-                detalhes = fluig_core.obter_detalhes_chamado(
-                    process_instance_id=process_instance_id,
-                    usuario=ConfigEnvSetings.FLUIG_ADMIN_USER
-                )
-                
-                if detalhes:
-                    # Combina dados básicos com detalhes
-                    chamado_completo = {
-                        "processInstanceId": process_instance_id,
-                        "processId": item.get('processId', ''),
-                        "processDescription": item.get('processDescription', ''),
-                        "status": item.get('status', ''),
-                        "slaStatus": item.get('slaStatus', ''),
-                        "startDate": item.get('startDate', ''),
-                        "assignStartDate": item.get('assignStartDate', ''),
-                        "requester": item.get('requester', {}),
-                        "assignee": item.get('assignee', {}),
-                        "state": item.get('state', {}),
-                        "detalhes": detalhes
-                    }
-                    chamados_detalhados.append(chamado_completo)
-                else:
-                    # Se não conseguir detalhes, retorna pelo menos os dados básicos
-                    chamado_basico = {
-                        "processInstanceId": process_instance_id,
-                        "processId": item.get('processId', ''),
-                        "processDescription": item.get('processDescription', ''),
-                        "status": item.get('status', ''),
-                        "slaStatus": item.get('slaStatus', ''),
-                        "startDate": item.get('startDate', ''),
-                        "assignStartDate": item.get('assignStartDate', ''),
-                        "requester": item.get('requester', {}),
-                        "assignee": item.get('assignee', {}),
-                        "state": item.get('state', {}),
-                        "detalhes": None
-                    }
-                    chamados_detalhados.append(chamado_basico)
-                    
-            except Exception as e:
-                logger.error(f"[obter_chamados_fila] Erro ao buscar detalhes do chamado {process_instance_id}: {str(e)}")
-                # Continua com os dados básicos mesmo se falhar ao buscar detalhes
-                chamado_basico = {
-                    "processInstanceId": process_instance_id,
-                    "processId": item.get('processId', ''),
-                    "processDescription": item.get('processDescription', ''),
-                    "status": item.get('status', ''),
-                    "slaStatus": item.get('slaStatus', ''),
-                    "startDate": item.get('startDate', ''),
-                    "requester": item.get('requester', {}),
-                    "assignee": item.get('assignee', {}),
-                    "state": item.get('state', {}),
-                    "detalhes": None
-                }
-                chamados_detalhados.append(chamado_basico)
+        # 3. Buscar detalhes de cada chamado em paralelo
+        chamados_detalhados = _buscar_detalhes_paralelo(fluig_core, items, max_workers=10)
         
         logger.info(f"[obter_chamados_fila] {len(chamados_detalhados)} chamado(s) processado(s) com sucesso")
         
+        resposta = {
+            "sucesso": True,
+            "chamados": chamados_detalhados,
+            "total": len(chamados_detalhados)
+        }
+        
+        # Salvar no cache antes de retornar
+        _salvar_no_cache(chave_cache, resposta)
+        
         return JSONResponse(
             status_code=200,
-            content={
-                "sucesso": True,
-                "chamados": chamados_detalhados,
-                "total": len(chamados_detalhados)
-            }
+            content=resposta
         )
         
     except Exception as e:
@@ -1312,12 +1838,27 @@ async def obter_chamados_grupo_itsm_todos(request: Request):
     """
     Retorna a lista de chamados do grupo Pool:Group:ITSM_TODOS
     Com filtros: status=NOT_COMPLETED e slaStatus=ON_TIME
+    Utiliza cache para melhorar performance
     """
     user = request.session.get('user')
     if not user:
         return JSONResponse(
             status_code=401,
             content={"sucesso": False, "erro": "Usuário não autenticado"}
+        )
+    
+    # Limpar cache expirado periodicamente
+    _limpar_cache_expirado()
+    
+    # Verificar cache (chave fixa para grupo)
+    chave_cache = _gerar_chave_cache('grupo', 'ITSM_TODOS')
+    dados_cache = _obter_do_cache(chave_cache)
+    
+    if dados_cache:
+        logger.info(f"[obter_chamados_grupo_itsm_todos] Retornando dados do cache")
+        return JSONResponse(
+            status_code=200,
+            content=dados_cache
         )
     
     try:
@@ -1336,91 +1877,41 @@ async def obter_chamados_grupo_itsm_todos(request: Request):
         
         if not chamados_lista:
             logger.info(f"[obter_chamados_grupo_itsm_todos] listar_chamados_tasks retornou None ou vazio")
+            resposta_vazia = {"sucesso": True, "chamados": []}
+            _salvar_no_cache(chave_cache, resposta_vazia)
             return JSONResponse(
                 status_code=200,
-                content={"sucesso": True, "chamados": []}
+                content=resposta_vazia
             )
         
         items = chamados_lista.get('items', [])
         if not items:
+            resposta_vazia = {"sucesso": True, "chamados": []}
+            _salvar_no_cache(chave_cache, resposta_vazia)
             return JSONResponse(
                 status_code=200,
-                content={"sucesso": True, "chamados": []}
+                content=resposta_vazia
             )
         
         logger.info(f"[obter_chamados_grupo_itsm_todos] {len(items)} chamado(s) encontrado(s)")
         
-        # Buscar detalhes de cada chamado
-        chamados_detalhados = []
-        for item in items:
-            process_instance_id = item.get('processInstanceId')
-            if not process_instance_id:
-                continue
-            
-            try:
-                logger.debug(f"[obter_chamados_grupo_itsm_todos] Buscando detalhes do chamado {process_instance_id}")
-                detalhes = fluig_core.obter_detalhes_chamado(
-                    process_instance_id=process_instance_id,
-                    usuario=ConfigEnvSetings.FLUIG_ADMIN_USER
-                )
-                
-                if detalhes:
-                    # Combina dados básicos com detalhes
-                    chamado_completo = {
-                        "processInstanceId": process_instance_id,
-                        "processId": item.get('processId', ''),
-                        "processDescription": item.get('processDescription', ''),
-                        "status": item.get('status', ''),
-                        "slaStatus": item.get('slaStatus', ''),
-                        "startDate": item.get('startDate', ''),
-                        "assignStartDate": item.get('assignStartDate', ''),
-                        "requester": item.get('requester', {}),
-                        "assignee": item.get('assignee', {}),
-                        "state": item.get('state', {}),
-                        "detalhes": detalhes
-                    }
-                    chamados_detalhados.append(chamado_completo)
-                else:
-                    # Se não conseguir detalhes, retorna pelo menos os dados básicos
-                    chamado_basico = {
-                        "processInstanceId": process_instance_id,
-                        "processId": item.get('processId', ''),
-                        "processDescription": item.get('processDescription', ''),
-                        "status": item.get('status', ''),
-                        "slaStatus": item.get('slaStatus', ''),
-                        "startDate": item.get('startDate', ''),
-                        "requester": item.get('requester', {}),
-                        "assignee": item.get('assignee', {}),
-                        "state": item.get('state', {}),
-                        "detalhes": None
-                    }
-                    chamados_detalhados.append(chamado_basico)
-            except Exception as e:
-                logger.error(f"[obter_chamados_grupo_itsm_todos] Erro ao buscar detalhes do chamado {process_instance_id}: {str(e)}")
-                # Continua com os dados básicos mesmo se falhar ao buscar detalhes
-                chamado_basico = {
-                    "processInstanceId": process_instance_id,
-                    "processId": item.get('processId', ''),
-                    "processDescription": item.get('processDescription', ''),
-                    "status": item.get('status', ''),
-                    "slaStatus": item.get('slaStatus', ''),
-                    "startDate": item.get('startDate', ''),
-                    "requester": item.get('requester', {}),
-                    "assignee": item.get('assignee', {}),
-                    "state": item.get('state', {}),
-                    "detalhes": None
-                }
-                chamados_detalhados.append(chamado_basico)
+        # Buscar detalhes de cada chamado em paralelo
+        chamados_detalhados = _buscar_detalhes_paralelo(fluig_core, items, max_workers=10)
         
         logger.info(f"[obter_chamados_grupo_itsm_todos] {len(chamados_detalhados)} chamado(s) processado(s) com sucesso")
         
+        resposta = {
+            "sucesso": True,
+            "chamados": chamados_detalhados,
+            "total": len(chamados_detalhados)
+        }
+        
+        # Salvar no cache antes de retornar
+        _salvar_no_cache(chave_cache, resposta)
+        
         return JSONResponse(
             status_code=200,
-            content={
-                "sucesso": True,
-                "chamados": chamados_detalhados,
-                "total": len(chamados_detalhados)
-            }
+            content=resposta
         )
         
     except Exception as e:
@@ -1434,4 +1925,334 @@ async def obter_chamados_grupo_itsm_todos(request: Request):
                 "erro": f"Erro ao obter chamados: {str(e)}"
             }
         )
+
+
+# ==================== ENDPOINTS DE TEMPLATES ====================
+
+@router.post("/chamado/template/salvar", response_class=JSONResponse)
+async def salvar_template_chamado(request: Request):
+    """
+    Salva um template de chamado (título e descrição) para o usuário logado
+    """
+    try:
+        # Verifica se usuário está autenticado
+        user = request.session.get('user')
+        if not user:
+            raise HTTPException(status_code=401, detail="Usuário não autenticado")
+        
+        email = user.get('email')
+        if not email:
+            raise HTTPException(status_code=400, detail="Email do usuário não encontrado")
+        
+        # Obtém dados do corpo da requisição
+        body = await request.json()
+        nome_template = body.get('nome_template', '').strip()
+        titulo = body.get('titulo', '').strip()
+        descricao = body.get('descricao', '').strip()
+        
+        if not nome_template:
+            raise HTTPException(status_code=400, detail="Nome do template é obrigatório")
+        
+        if not titulo and not descricao:
+            raise HTTPException(status_code=400, detail="Título e descrição não podem estar vazios")
+        
+        # Salva template
+        template_manager = get_user_template_manager()
+        sucesso = template_manager.salvar_template(email, nome_template, titulo, descricao)
+        
+        if sucesso:
+            return JSONResponse({
+                "sucesso": True,
+                "mensagem": "Template salvo com sucesso"
+            })
+        else:
+            raise HTTPException(status_code=500, detail="Erro ao salvar template")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[salvar_template_chamado] Erro: {str(e)}")
+        import traceback
+        logger.debug(f"[salvar_template_chamado] Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Erro ao salvar template: {str(e)}")
+
+
+@router.get("/chamado/template/carregar", response_class=JSONResponse)
+async def carregar_template_chamado(request: Request, nome_template: Optional[str] = None):
+    """
+    Carrega um template de chamado (título e descrição) do usuário logado
+    
+    Query Parameters:
+        nome_template: Nome do template a carregar (opcional)
+    """
+    try:
+        # Verifica se usuário está autenticado
+        user = request.session.get('user')
+        if not user:
+            raise HTTPException(status_code=401, detail="Usuário não autenticado")
+        
+        email = user.get('email')
+        if not email:
+            raise HTTPException(status_code=400, detail="Email do usuário não encontrado")
+        
+        # Carrega template
+        template_manager = get_user_template_manager()
+        template = template_manager.carregar_template(email, nome_template)
+        
+        if template:
+            return JSONResponse({
+                "sucesso": True,
+                "template": template
+            })
+        else:
+            return JSONResponse({
+                "sucesso": False,
+                "mensagem": "Nenhum template encontrado",
+                "template": None
+            })
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[carregar_template_chamado] Erro: {str(e)}")
+        import traceback
+        logger.debug(f"[carregar_template_chamado] Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Erro ao carregar template: {str(e)}")
+
+
+@router.get("/chamado/template/listar", response_class=JSONResponse)
+async def listar_templates_chamado(request: Request):
+    """
+    Lista todos os templates de chamado do usuário logado
+    """
+    try:
+        # Verifica se usuário está autenticado
+        user = request.session.get('user')
+        if not user:
+            raise HTTPException(status_code=401, detail="Usuário não autenticado")
+        
+        email = user.get('email')
+        if not email:
+            raise HTTPException(status_code=400, detail="Email do usuário não encontrado")
+        
+        # Lista templates
+        template_manager = get_user_template_manager()
+        templates = template_manager.listar_templates(email)
+        
+        return JSONResponse({
+            "sucesso": True,
+            "templates": templates,
+            "total": len(templates)
+        })
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[listar_templates_chamado] Erro: {str(e)}")
+        import traceback
+        logger.debug(f"[listar_templates_chamado] Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Erro ao listar templates: {str(e)}")
+
+
+@router.delete("/chamado/template/excluir", response_class=JSONResponse)
+async def excluir_template_chamado(request: Request, nome_template: str):
+    """
+    Exclui um template de chamado do usuário logado
+    
+    Query Parameters:
+        nome_template: Nome do template a excluir
+    """
+    try:
+        # Verifica se usuário está autenticado
+        user = request.session.get('user')
+        if not user:
+            raise HTTPException(status_code=401, detail="Usuário não autenticado")
+        
+        email = user.get('email')
+        if not email:
+            raise HTTPException(status_code=400, detail="Email do usuário não encontrado")
+        
+        if not nome_template:
+            raise HTTPException(status_code=400, detail="Nome do template é obrigatório")
+        
+        # Exclui template
+        template_manager = get_user_template_manager()
+        sucesso = template_manager.excluir_template(email, nome_template)
+        
+        if sucesso:
+            return JSONResponse({
+                "sucesso": True,
+                "mensagem": "Template excluído com sucesso"
+            })
+        else:
+            raise HTTPException(status_code=404, detail="Template não encontrado")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[excluir_template_chamado] Erro: {str(e)}")
+        import traceback
+        logger.debug(f"[excluir_template_chamado] Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Erro ao excluir template: {str(e)}")
+
+
+@router.post("/configuracoes/drive/backup", response_class=JSONResponse)
+async def fazer_backup_drive(request: Request):
+    """
+    Faz backup manual de todas as configurações para o Google Drive
+    Requer autenticação e permissão de administrador
+    """
+    user = request.session.get('user')
+    if not user:
+        raise HTTPException(status_code=401, detail="Usuário não autenticado")
+    
+    # Verificar permissão (apenas administrador)
+    user_email = user.get('email', '').lower().strip()
+    email_permitido = 'nathan.azevedo@uisa.com.br'
+    if user_email != email_permitido:
+        raise HTTPException(status_code=403, detail="Permissão negada: apenas administradores podem fazer backup")
+    
+    try:
+        from src.configs.drive_config_manager import get_drive_config_manager
+        from pathlib import Path
+        
+        drive_manager = get_drive_config_manager()
+        if not drive_manager:
+            raise HTTPException(
+                status_code=503, 
+                detail="Sincronização com Google Drive não está disponível. Verifique as configurações."
+            )
+        
+        resultados = {
+            'sucesso': True,
+            'mensagem': 'Backup manual não é mais necessário - sistema usa apenas Google Drive',
+            'arquivos_no_drive': []
+        }
+        
+        # Lista arquivos que já estão no Drive
+        arquivos_gerais = drive_manager.listar_configs()
+        arquivos_user = drive_manager.listar_configs(subpasta='user_configs')
+        
+        resultados['arquivos_no_drive'] = {
+            'gerais': [f['nome'] for f in arquivos_gerais],
+            'user_configs': [f['nome'] for f in arquivos_user]
+        }
+        
+        if resultados['erros']:
+            resultados['sucesso'] = False
+        
+        return JSONResponse(content=resultados)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[fazer_backup_drive] Erro: {str(e)}")
+        import traceback
+        logger.debug(f"[fazer_backup_drive] Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Erro ao fazer backup: {str(e)}")
+
+
+@router.post("/configuracoes/drive/restore", response_class=JSONResponse)
+async def restaurar_drive(request: Request):
+    """
+    Restaura configurações do Google Drive para o sistema local
+    Requer autenticação e permissão de administrador
+    """
+    user = request.session.get('user')
+    if not user:
+        raise HTTPException(status_code=401, detail="Usuário não autenticado")
+    
+    # Verificar permissão (apenas administrador)
+    user_email = user.get('email', '').lower().strip()
+    email_permitido = 'nathan.azevedo@uisa.com.br'
+    if user_email != email_permitido:
+        raise HTTPException(status_code=403, detail="Permissão negada: apenas administradores podem restaurar")
+    
+    try:
+        from src.configs.drive_config_manager import get_drive_config_manager
+        from pathlib import Path
+        
+        drive_manager = get_drive_config_manager()
+        if not drive_manager:
+            raise HTTPException(
+                status_code=503, 
+                detail="Sincronização com Google Drive não está disponível. Verifique as configurações."
+            )
+        
+        resultados = {
+            'sucesso': True,
+            'mensagem': 'Restauração manual não é mais necessária - sistema lê diretamente do Google Drive',
+            'arquivos_no_drive': []
+        }
+        
+        # Lista arquivos que estão no Drive
+        arquivos_gerais = drive_manager.listar_configs()
+        arquivos_user = drive_manager.listar_configs(subpasta='user_configs')
+        
+        resultados['arquivos_no_drive'] = {
+            'gerais': [f['nome'] for f in arquivos_gerais],
+            'user_configs': [f['nome'] for f in arquivos_user]
+        }
+        
+        if resultados['erros']:
+            resultados['sucesso'] = False
+        
+        return JSONResponse(content=resultados)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[restaurar_drive] Erro: {str(e)}")
+        import traceback
+        logger.debug(f"[restaurar_drive] Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Erro ao restaurar: {str(e)}")
+
+
+@router.get("/configuracoes/drive/status", response_class=JSONResponse)
+async def status_sincronizacao_drive(request: Request):
+    """
+    Retorna o status da sincronização com Google Drive
+    Requer autenticação e permissão de administrador
+    """
+    user = request.session.get('user')
+    if not user:
+        raise HTTPException(status_code=401, detail="Usuário não autenticado")
+    
+    # Verificar permissão (apenas administrador)
+    user_email = user.get('email', '').lower().strip()
+    email_permitido = 'nathan.azevedo@uisa.com.br'
+    if user_email != email_permitido:
+        raise HTTPException(status_code=403, detail="Permissão negada: apenas administradores podem verificar status")
+    
+    try:
+        from src.configs.drive_config_manager import get_drive_config_manager
+        from src.modelo_dados.modelo_settings import ConfigEnvSetings
+        
+        drive_manager = get_drive_config_manager()
+        
+        status = {
+            'sincronizacao_habilitada': hasattr(ConfigEnvSetings, 'DRIVE_SYNC_ENABLED') and 
+                                       ConfigEnvSetings.DRIVE_SYNC_ENABLED.lower() in ('true', '1', 'yes'),
+            'servico_disponivel': drive_manager is not None and drive_manager.service is not None,
+            'pasta_configurada': drive_manager.base_folder_id is not None if drive_manager else False,
+            'arquivos_no_drive': []
+        }
+        
+        if drive_manager and drive_manager.service:
+            # Lista arquivos
+            arquivos_gerais = drive_manager.listar_configs()
+            arquivos_user = drive_manager.listar_configs(subpasta='user_configs')
+            
+            status['arquivos_no_drive'] = {
+                'gerais': arquivos_gerais,
+                'user_configs': arquivos_user
+            }
+        
+        return JSONResponse(content=status)
+        
+    except Exception as e:
+        logger.error(f"[status_sincronizacao_drive] Erro: {str(e)}")
+        import traceback
+        logger.debug(f"[status_sincronizacao_drive] Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Erro ao verificar status: {str(e)}")
 

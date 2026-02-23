@@ -135,7 +135,7 @@ class FluigCore():
             logger.error(f"[Dataset_config] Erro na requisição - Status: {resposta.status_code}")
             return resposta
 
-    def AberturaDeChamado(self,tipo_chamado: str, Item: any, usuario_atendido: Optional[str] = None):
+    def AberturaDeChamado(self,tipo_chamado: str, Item: any, usuario_atendido: Optional[str] = None, target_assignee: Optional[str] = None):
         """
             ITEM
             class AberturaChamadoClassificado(BaseModel):
@@ -145,37 +145,23 @@ class FluigCore():
                 servico: str
         """
         """
-        Abre um chamado no Fluig
+        Abre um chamado no Fluig usando autenticação OAuth 1.0
+        
+        IMPORTANTE: Esta função agora usa exclusivamente OAuth 1.0 (CK, CS, TK, TS)
+        e não depende mais de cookies ou login via browser.
         
         Args:
-            tipo_chamado: Tipo de chamado ('classificado' ou 'funcional')
+            tipo_chamado: Tipo de chamado ('classificado' ou 'normal')
             usuario_atendido: Nome do usuário atendido (opcional)
         """
         logger.info(f"[AberturaDeChamado] Iniciando abertura de chamado - Tipo: {tipo_chamado}, UsuarioAtendido: {usuario_atendido}")
+        logger.info(f"[AberturaDeChamado] Usando autenticação OAuth 1.0")
         url = self.url_base + "/process-management/api/v2/processes/Abertura%20de%20Chamados/start"
         
-        # Obtém autenticação baseado no ambiente (usa apenas FLUIG_ADMIN_USER)
-        if self.ambiente == "QLD":
-            usuario = ConfigEnvSetings.FLUIG_ADMIN_USER
-            senha = ConfigEnvSetings.FLUIG_ADMIN_PASS
-            logger.debug(f"[AberturaDeChamado] Usando credenciais QLD - Usuário: {usuario}")
-        else:
-            usuario = ConfigEnvSetings.FLUIG_ADMIN_USER
-            senha = ConfigEnvSetings.FLUIG_ADMIN_PASS
-            logger.debug(f"[AberturaDeChamado] Usando credenciais PRD - Usuário: {usuario}")
-        
-        sucesso, cookies_list = garantir_autenticacao(ambiente=self.ambiente, usuario=usuario, senha=senha)
-        if not sucesso or not cookies_list:
-            logger.error("[AberturaDeChamado] Falha ao garantir autenticação")
-            raise ValueError("[AberturaDeChamado] Falha ao garantir autenticação")
-        cookies_dict = cookies_para_requests(cookies_list)
-        if not cookies_dict:
-            logger.error("[AberturaDeChamado] Falha ao converter cookies")
-            raise ValueError("[AberturaDeChamado] Falha ao converter cookies")
         from src.utilitarios_centrais.payloads import PayloadChamadoClassificado, PayloadChamadoNormal
         
         if tipo_chamado == "classificado":
-            payload = PayloadChamadoClassificado(Item, ambiente=self.ambiente, usuario_atendido=usuario_atendido)
+            payload = PayloadChamadoClassificado(Item, ambiente=self.ambiente, usuario_atendido=usuario_atendido, target_assignee=target_assignee)
             if not payload:
                 logger.error("[AberturaDeChamado] Falha ao montar payload do chamado classificado")
                 raise ValueError("[AberturaDeChamado] Falha ao montar payload do chamado classificado")
@@ -189,7 +175,8 @@ class FluigCore():
             raise ValueError(f"[AberturaDeChamado] Tipo de chamado inválido: {tipo_chamado}")
         
         logger.info(f"[AberturaDeChamado] Enviando requisição POST para: {url}")
-        resposta = self.requests.RequestTipoPostCookies(url, payload, cookies_dict)
+        # Usa RequestTipoPOST que utiliza apenas OAuth 1.0
+        resposta = self.requests.RequestTipoPOST(url, payload)
         resultado = {
             "status_code": resposta.status_code,
             "sucesso": resposta.status_code == 200
@@ -205,11 +192,61 @@ class FluigCore():
         
         return resultado
 
+    def IniciarProcesso(self, process_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Inicia um processo genérico no Fluig usando autenticação OAuth 1.0
+        
+        IMPORTANTE: Esta função usa exclusivamente OAuth 1.0 (CK, CS, TK, TS)
+        e não depende de cookies ou login via browser.
+        
+        Args:
+            process_id: ID/Nome do processo no Fluig (ex: "Abertura de Chamados", "Solicitação de Férias", etc.)
+            payload: Payload genérico do processo (dicionário com os campos do formulário)
+        
+        Returns:
+            Dicionário com status_code, sucesso e dados da resposta
+        """
+        logger.info(f"[IniciarProcesso] Iniciando processo - ProcessId: {process_id}, Ambiente: {self.ambiente}")
+        logger.info(f"[IniciarProcesso] Usando autenticação OAuth 1.0")
+        
+        # URL encode do processId (espaços viram %20)
+        from urllib.parse import quote
+        process_id_encoded = quote(process_id, safe='')
+        url = f"{self.url_base}/process-management/api/v2/processes/{process_id_encoded}/start"
+        
+        logger.info(f"[IniciarProcesso] Enviando requisição POST para: {url}")
+        logger.debug(f"[IniciarProcesso] Payload: {json.dumps(payload, indent=2, ensure_ascii=False)}")
+        
+        # Adiciona processId no header
+        headers_extra = {"X-Process-Id": process_id}
+        
+        # Usa RequestTipoPOST que utiliza apenas OAuth 1.0
+        resposta = self.requests.RequestTipoPOST(url, payload, headers_extra=headers_extra)
+        
+        resultado = {
+            "status_code": resposta.status_code,
+            "sucesso": resposta.status_code == 200
+        }
+        
+        try:
+            resultado["dados"] = resposta.json()
+            logger.info(f"[IniciarProcesso] Resposta processada com sucesso - Status: {resposta.status_code}")
+            if resultado["sucesso"]:
+                # Extrai processInstanceId se disponível
+                if isinstance(resultado["dados"], dict):
+                    resultado["process_instance_id"] = resultado["dados"].get("processInstanceId")
+        except Exception as e:
+            logger.warning(f"[IniciarProcesso] Erro ao processar JSON da resposta: {str(e)}")
+            resultado["dados"] = None
+            resultado["texto"] = resposta.text[:500] if resposta.text else ""
+        
+        return resultado
+
     def upload_arquivo_fluig(self, arquivo_bytes: bytes, nome_arquivo: str, colleague_id: str) -> dict | None:
         """
         Faz upload de um arquivo no Fluig usando o endpoint /ecm/upload
         
-        IMPORTANTE: Usa apenas FLUIG_ADMIN_USER
+        IMPORTANTE: Usa autenticação OAuth 1.0
         
         Args:
             arquivo_bytes: Conteúdo do arquivo em bytes
@@ -220,25 +257,7 @@ class FluigCore():
             Dicionário com resposta do upload ou None em caso de erro
         """
         try:
-            logger.info(f"[upload_arquivo_fluig] Iniciando upload do arquivo: {nome_arquivo}")
-            
-            # Obtém autenticação - USA APENAS FLUIG_ADMIN_USER
-            if self.ambiente == "QLD":
-                usuario = ConfigEnvSetings.FLUIG_ADMIN_USER
-                senha = ConfigEnvSetings.FLUIG_ADMIN_PASS
-            else:
-                usuario = ConfigEnvSetings.FLUIG_ADMIN_USER
-                senha = ConfigEnvSetings.FLUIG_ADMIN_PASS
-            
-            sucesso, cookies_list = garantir_autenticacao(ambiente=self.ambiente, usuario=usuario, senha=senha)
-            if not sucesso or not cookies_list:
-                logger.error("[upload_arquivo_fluig] Falha ao garantir autenticação")
-                return None
-            
-            cookies_dict = cookies_para_requests(cookies_list)
-            if not cookies_dict:
-                logger.error("[upload_arquivo_fluig] Falha ao converter cookies")
-                return None
+            logger.info(f"[upload_arquivo_fluig] Iniciando upload do arquivo: {nome_arquivo} usando OAuth 1.0")
             
             # URL do endpoint de upload
             url_upload = self.url_base + "/ecm/upload"
@@ -261,13 +280,12 @@ class FluigCore():
             logger.info(f"[upload_arquivo_fluig] - Tamanho arquivo: {len(arquivo_bytes)} bytes")
             logger.info(f"[upload_arquivo_fluig] - Content-Type arquivo: application/octet-stream")
             
-            # Faz requisição - SEM definir Content-Type (requests define automaticamente com multipart boundary)
+            # Faz upload usando OAuth 1.0 (via RequestsFluig)
             logger.info(f"[upload_arquivo_fluig] Enviando arquivo para: {url_upload}")
-            resposta = requests.post(
-                url_upload,
+            resposta = self.requests.RequestTipoPOSTMultipart(
+                url=url_upload,
                 files=files,
                 data=data,
-                cookies=cookies_dict,
                 timeout=60
             )
             
@@ -280,24 +298,207 @@ class FluigCore():
                         primeiro_arquivo = resultado['files'][0]
                         if 'error' in primeiro_arquivo:
                             logger.error(f"[upload_arquivo_fluig] Erro no upload: {primeiro_arquivo['error']}")
-                            return None
+                            return {"sucesso": False, "erro": primeiro_arquivo['error']}
+                        
+                        # O endpoint /ecm/upload não retorna document_id diretamente
+                        # Retorna formato padronizado para facilitar uso
                         logger.info(f"[upload_arquivo_fluig] Upload realizado com sucesso: {resultado}")
-                        return resultado
+                        return {
+                            "sucesso": True,
+                            "dados": resultado,
+                            "document_id": primeiro_arquivo.get("documentId") or primeiro_arquivo.get("id") or primeiro_arquivo.get("document_id"),
+                            "nome": primeiro_arquivo.get("name", nome_arquivo),
+                            "tamanho": primeiro_arquivo.get("size")
+                        }
                     else:
                         logger.error(f"[upload_arquivo_fluig] Resposta inesperada: {resultado}")
-                        return None
+                        return {"sucesso": False, "erro": "Resposta inesperada do servidor"}
                 except Exception as e:
                     logger.error(f"[upload_arquivo_fluig] Erro ao processar resposta JSON: {str(e)}")
-                    return None
+                    return {"sucesso": False, "erro": f"Erro ao processar resposta: {str(e)}"}
             else:
                 logger.error(f"[upload_arquivo_fluig] Erro no upload - Status: {resposta.status_code}, Resposta: {resposta.text[:500]}")
-                return None
+                return {"sucesso": False, "erro": f"Erro HTTP {resposta.status_code}", "status_code": resposta.status_code}
                 
         except Exception as e:
             logger.error(f"[upload_arquivo_fluig] Erro inesperado no upload: {str(e)}")
             import traceback
             logger.debug(f"[upload_arquivo_fluig] Traceback: {traceback.format_exc()}")
             return None
+
+    def AnexarArquivoProcesso(
+        self,
+        process_id: str,
+        process_instance_id: int,
+        nome_arquivo: str,
+        document_id: Optional[int] = None,
+        version: int = 57,
+        current_movto: int = 3,
+        task_user_id: Optional[str] = None,
+        colleague_id: Optional[str] = None,
+        attached_user: str = "Infra Automação",
+        attached_activity: str = "Aguardando Classificação",
+        internal_id: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        Anexa um arquivo a um processo/chamado usando o endpoint saveAttachments
+        
+        IMPORTANTE: 
+        - Usa autenticação OAuth 1.0
+        - Aceita qualquer processo (não apenas "Abertura de Chamados")
+        - Se document_id não for fornecido ou for 0, usa documentId: 0 no payload (arquivo enviado via upload)
+        
+        Args:
+            process_id: ID/Nome do processo (ex: "Abertura de Chamados")
+            process_instance_id: ID do chamado (processInstanceId)
+            nome_arquivo: Nome do arquivo (usado em name, description e fileName)
+            document_id: ID do documento retornado pelo upload_arquivo_fluig (opcional, usa 0 se não fornecido)
+            version: Versão do processo (padrão: 57)
+            current_movto: Movimento atual (padrão: 3)
+            task_user_id: ID do usuário da tarefa (padrão: ADMIN_COLLEAGUE_ID)
+            colleague_id: ID do colaborador (padrão: ADMIN_COLLEAGUE_ID)
+            attached_user: Nome do usuário que anexou (padrão: "Infra Automação")
+            attached_activity: Nome da atividade (padrão: "Aguardando Classificação")
+            internal_id: ID interno do arquivo (opcional, gera timestamp se None)
+            
+        Returns:
+            Dicionário com status_code, sucesso e dados da resposta
+        """
+        try:
+            # Se document_id não fornecido, usa 0 (para arquivos enviados via upload)
+            if document_id is None or document_id <= 0:
+                document_id = 0
+                logger.info(f"[AnexarArquivoProcesso] Anexando arquivo {nome_arquivo} (sem document_id, usando 0) ao processo {process_id} (chamado {process_instance_id}) usando OAuth 1.0")
+            else:
+                logger.info(f"[AnexarArquivoProcesso] Anexando arquivo {nome_arquivo} (DocumentID: {document_id}) ao processo {process_id} (chamado {process_instance_id}) usando OAuth 1.0")
+            
+            # Obtém IDs padrão se não fornecidos
+            if not task_user_id:
+                task_user_id = ConfigEnvSetings.ADMIN_COLLEAGUE_ID
+            if not colleague_id:
+                colleague_id = ConfigEnvSetings.ADMIN_COLLEAGUE_ID
+            
+            if not task_user_id or task_user_id == "":
+                logger.error("[AnexarArquivoProcesso] task_user_id não configurado")
+                return {"status_code": 500, "sucesso": False, "erro": "task_user_id não configurado"}
+            
+            # Gera internal_id se não fornecido (timestamp em milissegundos)
+            if internal_id is None:
+                import time
+                internal_id = int(time.time() * 1000)
+            
+            # URL do endpoint saveAttachments
+            url_save = self.url_base + "/ecm/api/rest/ecm/workflowView/saveAttachments"
+            
+            # Monta payload conforme exemplo fornecido
+            payload = {
+                "processId": process_id,
+                "version": version,
+                "managerMode": False,
+                "taskUserId": task_user_id,
+                "processInstanceId": process_instance_id,
+                "isDigitalSigned": False,
+                "selectedState": 5,
+                "attachments": [{
+                    "id": 1,
+                    "fullPath": "BPM",
+                    "droppedZipZone": False,
+                    "name": nome_arquivo,
+                    "internalId": internal_id,
+                    "newAttach": True,
+                    "description": nome_arquivo,
+                    "documentId": document_id,
+                    "attachedUser": attached_user,
+                    "attachedActivity": attached_activity,
+                    "attachments": [{
+                        "attach": False,
+                        "principal": True,
+                        "fileName": nome_arquivo
+                    }],
+                    "hasOwnSubMenu": True,
+                    "enablePublish": False,
+                    "enableEdit": False,
+                    "enableEditContent": False,
+                    "fromUpload": True,
+                    "enableDownload": True,
+                    "hasMoreOptions": False,
+                    "deleted": False,
+                    "iconClass": "fluigicon-file-upload",
+                    "iconUrl": False,
+                    "colleagueId": colleague_id or task_user_id
+                }],
+                "currentMovto": current_movto
+            }
+            
+            # Log do payload completo
+            payload_json = json.dumps(payload, indent=2, ensure_ascii=False)
+            logger.info(f"[AnexarArquivoProcesso] Payload completo:\n{payload_json}")
+            
+            # Headers para anexar arquivo
+            headers = {
+                'Content-Type': 'application/json; charset=UTF-8',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+            
+            logger.info(f"[AnexarArquivoProcesso] Enviando requisição para: {url_save}")
+            
+            # Faz requisição usando OAuth 1.0
+            from src.auth.auth_fluig import AutenticarFluig
+            auth, _ = AutenticarFluig(self.ambiente)
+            
+            resposta = requests.post(
+                url_save,
+                json=payload,
+                headers=headers,
+                auth=auth,
+                timeout=30
+            )
+            
+            resultado = {
+                "status_code": resposta.status_code,
+                "sucesso": resposta.status_code == 200
+            }
+            
+            try:
+                resultado["dados"] = resposta.json()
+                
+                if resposta.status_code == 200:
+                    # Verifica se há erro na resposta
+                    if resultado["dados"].get("content") == "ERROR" or resultado["dados"].get("message"):
+                        mensagem_erro = resultado["dados"].get("message", {})
+                        if isinstance(mensagem_erro, dict):
+                            erro_msg = mensagem_erro.get("message", "Erro desconhecido")
+                        else:
+                            erro_msg = str(mensagem_erro)
+                        logger.error(f"[AnexarArquivoProcesso] Erro retornado pelo Fluig: {erro_msg}")
+                        resultado["sucesso"] = False
+                        resultado["erro"] = erro_msg
+                    else:
+                        # Verifica se anexou com sucesso
+                        content = resultado["dados"].get("content", {})
+                        if content and content.get("hasNewAttachment"):
+                            logger.info(f"[AnexarArquivoProcesso] Arquivo anexado com sucesso ao processo {process_id} (chamado {process_instance_id})")
+                        else:
+                            logger.warning(f"[AnexarArquivoProcesso] Resposta sem confirmação explícita de anexo, mas status 200")
+                else:
+                    logger.error(f"[AnexarArquivoProcesso] Erro ao anexar arquivo - Status: {resposta.status_code}")
+                    resultado["texto"] = resposta.text[:500] if resposta.text else ""
+            except Exception as e:
+                logger.warning(f"[AnexarArquivoProcesso] Erro ao processar JSON da resposta: {str(e)}")
+                resultado["dados"] = None
+                resultado["texto"] = resposta.text[:500] if resposta.text else ""
+            
+            return resultado
+                
+        except Exception as e:
+            logger.error(f"[AnexarArquivoProcesso] Erro inesperado ao anexar arquivo: {str(e)}")
+            import traceback
+            logger.debug(f"[AnexarArquivoProcesso] Traceback: {traceback.format_exc()}")
+            return {
+                "status_code": 500,
+                "sucesso": False,
+                "erro": str(e)
+            }
 
     def anexar_arquivo_chamado(
         self,
@@ -310,7 +511,7 @@ class FluigCore():
         Anexa um arquivo a um chamado usando o endpoint saveAttachments
         
         IMPORTANTE: 
-        - Usa FLUIG_ADMIN_USER para autenticação
+        - Usa autenticação OAuth 1.0
         - Usa ADMIN_COLLEAGUE_ID para taskUserId e colleagueId no payload
         - attachedUser é fixo: "Infra Automação"
         
@@ -324,30 +525,12 @@ class FluigCore():
             True se anexou com sucesso, False caso contrário
         """
         try:
-            logger.info(f"[anexar_arquivo_chamado] Anexando arquivo {nome_arquivo} ao chamado {process_instance_id}")
+            logger.info(f"[anexar_arquivo_chamado] Anexando arquivo {nome_arquivo} ao chamado {process_instance_id} usando OAuth 1.0")
             
             # Obtém ADMIN_COLLEAGUE_ID para usar no payload
             admin_colleague_id = ConfigEnvSetings.ADMIN_COLLEAGUE_ID
             if not admin_colleague_id or admin_colleague_id == "":
                 logger.error("[anexar_arquivo_chamado] ADMIN_COLLEAGUE_ID não configurado")
-                return False
-            
-            # Obtém autenticação - USA APENAS FLUIG_ADMIN_USER
-            if self.ambiente == "QLD":
-                usuario = ConfigEnvSetings.FLUIG_ADMIN_USER
-                senha = ConfigEnvSetings.FLUIG_ADMIN_PASS
-            else:
-                usuario = ConfigEnvSetings.FLUIG_ADMIN_USER
-                senha = ConfigEnvSetings.FLUIG_ADMIN_PASS
-            
-            sucesso, cookies_list = garantir_autenticacao(ambiente=self.ambiente, usuario=usuario, senha=senha)
-            if not sucesso or not cookies_list:
-                logger.error("[anexar_arquivo_chamado] Falha ao garantir autenticação")
-                return False
-            
-            cookies_dict = cookies_para_requests(cookies_list)
-            if not cookies_dict:
-                logger.error("[anexar_arquivo_chamado] Falha ao converter cookies")
                 return False
             
             # URL do endpoint saveAttachments
@@ -363,7 +546,7 @@ class FluigCore():
             payload_json = json.dumps(payload, indent=2, ensure_ascii=False)
             logger.info(f"[anexar_arquivo_chamado] Payload completo:{payload_json}")
             
-            # Headers
+            # Headers para anexar arquivo
             headers = {
                 'Content-Type': 'application/json; charset=UTF-8',
                 'X-Requested-With': 'XMLHttpRequest'
@@ -371,13 +554,18 @@ class FluigCore():
             
             logger.info(f"[anexar_arquivo_chamado] Headers: {headers}")
             
-            # Faz requisição
+            # Faz requisição usando OAuth 1.0
+            # Nota: O RequestsFluig.RequestTipoPOST usa headers padrão, mas precisamos de headers específicos
+            # então vamos usar OAuth 1.0 diretamente
+            from src.auth.auth_fluig import AutenticarFluig
+            auth, _ = AutenticarFluig(self.ambiente)
+            
             logger.info(f"[anexar_arquivo_chamado] Enviando requisição para: {url_save}")
             resposta = requests.post(
                 url_save,
                 json=payload,
-                cookies=cookies_dict,
                 headers=headers,
+                auth=auth,
                 timeout=30
             )
             
@@ -403,7 +591,7 @@ class FluigCore():
                         logger.debug(f"[anexar_arquivo_chamado] Resposta: {resultado}")
                         return True
                     else:
-                        logger.warning(f"[anexar_arquivo_chamado] Resposta sem confirmação de anexo: {resultado}")
+                        logger.warning(f"[anexar_arquivo_chamado] Resposta sem confirmação explícita de anexo, mas status 200")
                         return True  # Assumir sucesso se status 200 e sem erro
                 except Exception as e:
                     logger.error(f"[anexar_arquivo_chamado] Erro ao processar resposta JSON: {str(e)}")
@@ -588,4 +776,237 @@ class FluigCore():
                 
         except Exception as e:
             logger.error(f"[obter_detalhes_chamado] Erro inesperado: {str(e)}")
+            return None
+
+    def obter_detalhes_atividade(
+        self,
+        process_instance_id: int,
+        page: int = 1,
+        page_size: int = 1000
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Obtém detalhes das atividades de um processo/chamado usando o endpoint da API v2
+        
+        Endpoint: GET /process-management/api/v2/activities
+        
+        Args:
+            process_instance_id: ID da instância do processo (número do chamado)
+            page: Número da página (padrão: 1)
+            page_size: Tamanho da página (padrão: 1000)
+        
+        Returns:
+            Dicionário com os detalhes das atividades contendo:
+            - items: Lista de atividades
+            - hasNext: Indica se há mais páginas
+            Retorna None em caso de erro
+        """
+        try:
+            # Usa URL base já configurada na instância
+            parsed_url = urlparse(self.url_base)
+            base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+            
+            # Endpoint oficial da API v2 do Fluig
+            url = f"{base_url}/process-management/api/v2/activities"
+            
+            # Parâmetros da query string
+            parametros = {
+                "processInstanceId": process_instance_id,
+                "page": page,
+                "pageSize": page_size
+            }
+            
+            logger.info(f"[obter_detalhes_atividade] Buscando detalhes das atividades do chamado {process_instance_id}...")
+            logger.debug(f"[obter_detalhes_atividade] URL: {url}")
+            logger.debug(f"[obter_detalhes_atividade] Parâmetros: {parametros}")
+            
+            # Usa autenticação OAuth1 através do RequestsFluig
+            response = self.requests.RequestTipoGET(url, parametros)
+            
+            logger.info(f"[obter_detalhes_atividade] Status: {response.status_code}")
+            
+            if response.status_code == 200:
+                try:
+                    data = response.json()
+                    
+                    items = data.get('items', [])
+                    has_next = data.get('hasNext', False)
+                    
+                    logger.info(f"[obter_detalhes_atividade] {len(items)} atividade(s) encontrada(s), hasNext: {has_next}")
+                    logger.debug(f"[obter_detalhes_atividade] Resposta completa: {json.dumps(data, indent=2, ensure_ascii=False)[:1000]}")
+                    
+                    return data
+                except json.JSONDecodeError as e:
+                    logger.error(f"[obter_detalhes_atividade] Erro ao decodificar JSON: {str(e)}")
+                    logger.debug(f"[obter_detalhes_atividade] Resposta: {response.text[:500]}")
+                    return None
+            else:
+                logger.error(f"[obter_detalhes_atividade] Erro HTTP {response.status_code}")
+                logger.error(f"[obter_detalhes_atividade] Resposta do servidor: {response.text[:500]}")
+                
+                if response.status_code in [401, 403]:
+                    logger.warning("[obter_detalhes_atividade] Erro de autenticação. Verifique as credenciais OAuth1 (CK, CS, TK, TS)")
+                elif response.status_code == 404:
+                    logger.warning(f"[obter_detalhes_atividade] Chamado {process_instance_id} não encontrado")
+                elif response.status_code == 500:
+                    logger.warning(f"[obter_detalhes_atividade] Erro interno do servidor. Verifique se o chamado existe")
+                
+                return None
+                
+        except Exception as e:
+            logger.error(f"[obter_detalhes_atividade] Erro inesperado: {str(e)}")
+            import traceback
+            logger.debug(f"[obter_detalhes_atividade] Traceback: {traceback.format_exc()}")
+            return None
+
+    def obter_historico_chamado(
+        self,
+        process_instance_id: int,
+        page: int = 1,
+        page_size: int = 1000
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Obtém o histórico de um chamado usando o endpoint da API v2
+        
+        Endpoint: GET /process-management/api/v2/requests/{processInstanceId}/histories
+        
+        IMPORTANTE: Usa exclusivamente autenticação OAuth 1.0 (CK, CS, TK, TS)
+        
+        Args:
+            process_instance_id: ID da instância do processo (número do chamado)
+            page: Número da página (padrão: 1)
+            page_size: Tamanho da página (padrão: 1000)
+        
+        Returns:
+            Dicionário com o histórico do chamado contendo:
+            - items: Lista de eventos do histórico (MOVEMENT, OBSERVATION, ATTACHMENT)
+            - hasNext: Indica se há mais páginas
+            Retorna None em caso de erro
+        """
+        try:
+            # Usa URL base já configurada na instância
+            parsed_url = urlparse(self.url_base)
+            base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+            
+            # Endpoint oficial da API v2 do Fluig
+            url = f"{base_url}/process-management/api/v2/requests/{process_instance_id}/histories"
+            
+            # Parâmetros da query string
+            parametros = {
+                "page": page,
+                "pageSize": page_size
+            }
+            
+            logger.info(f"[obter_historico_chamado] Buscando histórico do chamado {process_instance_id}...")
+            logger.debug(f"[obter_historico_chamado] URL: {url}")
+            logger.debug(f"[obter_historico_chamado] Parâmetros: {parametros}")
+            logger.info(f"[obter_historico_chamado] Usando autenticação OAuth 1.0")
+            
+            # Usa autenticação OAuth1 através do RequestsFluig
+            response = self.requests.RequestTipoGET(url, parametros)
+            
+            logger.info(f"[obter_historico_chamado] Status: {response.status_code}")
+            
+            if response.status_code == 200:
+                try:
+                    data = response.json()
+                    
+                    items = data.get('items', [])
+                    has_next = data.get('hasNext', False)
+                    
+                    logger.info(f"[obter_historico_chamado] {len(items)} evento(s) encontrado(s) no histórico, hasNext: {has_next}")
+                    logger.debug(f"[obter_historico_chamado] Resposta completa: {json.dumps(data, indent=2, ensure_ascii=False)[:1000]}")
+                    
+                    return data
+                except json.JSONDecodeError as e:
+                    logger.error(f"[obter_historico_chamado] Erro ao decodificar JSON: {str(e)}")
+                    logger.debug(f"[obter_historico_chamado] Resposta: {response.text[:500]}")
+                    return None
+            else:
+                logger.error(f"[obter_historico_chamado] Erro HTTP {response.status_code}")
+                logger.error(f"[obter_historico_chamado] Resposta do servidor: {response.text[:500]}")
+                
+                if response.status_code in [401, 403]:
+                    logger.warning("[obter_historico_chamado] Erro de autenticação. Verifique as credenciais OAuth1 (CK, CS, TK, TS)")
+                elif response.status_code == 404:
+                    logger.warning(f"[obter_historico_chamado] Chamado {process_instance_id} não encontrado")
+                elif response.status_code == 500:
+                    logger.warning(f"[obter_historico_chamado] Erro interno do servidor. Verifique se o chamado existe")
+                
+                return None
+                
+        except Exception as e:
+            logger.error(f"[obter_historico_chamado] Erro inesperado: {str(e)}")
+            import traceback
+            logger.debug(f"[obter_historico_chamado] Traceback: {traceback.format_exc()}")
+            return None
+    
+    def baixar_anexo_chamado(
+        self,
+        process_instance_id: int,
+        document_name: str
+    ) -> Optional[bytes]:
+        """
+        Baixa um anexo de um chamado usando o endpoint da API v2
+        
+        Endpoint: GET /process-management/api/v2/requests/{processInstanceId}/attachments/download
+        
+        IMPORTANTE: Usa exclusivamente autenticação OAuth 1.0 (CK, CS, TK, TS)
+        
+        Args:
+            process_instance_id: ID da instância do processo (número do chamado)
+            document_name: Nome do documento/anexo a ser baixado
+        
+        Returns:
+            Bytes do arquivo baixado ou None em caso de erro
+        """
+        try:
+            # Usa URL base já configurada na instância
+            parsed_url = urlparse(self.url_base)
+            base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+            
+            # Endpoint oficial da API v2 do Fluig
+            url = f"{base_url}/process-management/api/v2/requests/{process_instance_id}/attachments/download"
+            
+            # Parâmetros da query string
+            parametros = {
+                "documentName": document_name
+            }
+            
+            logger.info(f"[baixar_anexo_chamado] Baixando anexo '{document_name}' do chamado {process_instance_id}...")
+            logger.debug(f"[baixar_anexo_chamado] URL: {url}")
+            logger.debug(f"[baixar_anexo_chamado] Parâmetros: {parametros}")
+            logger.info(f"[baixar_anexo_chamado] Usando autenticação OAuth 1.0")
+            
+            # Usa autenticação OAuth1 através do RequestsFluig (não loga conteúdo binário)
+            response = self.requests.RequestTipoGET(url, parametros, logar_conteudo=False)
+            
+            logger.info(f"[baixar_anexo_chamado] Status: {response.status_code}")
+            
+            if response.status_code == 200:
+                tamanho_bytes = len(response.content)
+                # Converte tamanho para formato legível
+                if tamanho_bytes < 1024:
+                    tamanho_formatado = f"{tamanho_bytes} bytes"
+                elif tamanho_bytes < 1024 * 1024:
+                    tamanho_formatado = f"{tamanho_bytes / 1024:.2f} KB"
+                else:
+                    tamanho_formatado = f"{tamanho_bytes / (1024 * 1024):.2f} MB"
+                
+                logger.info(f"[baixar_anexo_chamado] Anexo '{document_name}' baixado com sucesso - Tamanho: {tamanho_formatado}")
+                return response.content
+            else:
+                logger.error(f"[baixar_anexo_chamado] Erro ao baixar anexo '{document_name}' - Status: {response.status_code}")
+                # Tenta ler apenas se for texto (não binário)
+                try:
+                    content_type = response.headers.get('Content-Type', '')
+                    if 'text' in content_type.lower() or 'json' in content_type.lower():
+                        logger.error(f"[baixar_anexo_chamado] Resposta: {response.text[:500]}")
+                except:
+                    pass
+                return None
+                
+        except Exception as e:
+            logger.error(f"[baixar_anexo_chamado] Exceção ao baixar anexo: {str(e)}")
+            import traceback
+            logger.debug(f"[baixar_anexo_chamado] Traceback: {traceback.format_exc()}")
             return None

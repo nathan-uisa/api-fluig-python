@@ -1,8 +1,8 @@
 # API Fluig - Abertura de Chamados
 
-API REST desenvolvida com FastAPI para integração com o sistema Fluig, permitindo abertura automatizada de chamados nos ambientes de produção (PRD) e qualidade (QLD), com suporte a processamento inteligente via Inteligência Artificial e gerenciamento automático de autenticação via cookies.
+API REST desenvolvida com FastAPI para integração com o sistema Fluig, permitindo abertura automatizada de chamados nos ambientes de produção (PRD) e qualidade (QLD), com suporte a processamento inteligente via Inteligência Artificial e autenticação via OAuth 1.0.
 
-**Versão Atual:** 3.5.0
+**Versão Atual:** 7.3.2
 
 ## Índice
 
@@ -29,10 +29,13 @@ API REST desenvolvida com FastAPI para integração com o sistema Fluig, permiti
 - **Gerenciamento de Serviços**: Consulta de lista de serviços e detalhes de serviços específicos
 - **Consulta de Datasets**: Busca de dados em datasets do Fluig (colleague, funcionários, aprovadores) com suporte a busca por CHAPA
 - **Detalhes de Chamados**: Obtenção de detalhes completos de chamados existentes
-- **Autenticação Automática**: Sistema de gerenciamento de cookies com validação de expiração e re-autenticação automática
+- **Autenticação OAuth 1.0**: Autenticação segura via OAuth 1.0 para todas as operações com o Fluig
 - **Inteligência Artificial**: Extração de informações de chamados usando Google Generative AI (Gemini)
 - **Autenticação via API Key**: Proteção de todas as rotas com API Key
 - **Monitoramento de Emails**: Processamento automático de emails do Gmail para abertura de chamados (substitui Apps Script)
+- **Processos Genéricos**: Endpoints para iniciar qualquer processo/formulário do Fluig com payload genérico
+- **Upload e Anexo de Arquivos**: Upload de arquivos no ECM e anexo a processos existentes (base64 ou multipart/form-data)
+- **Obtenção Automática de Detalhes**: Detecção automática de versão, movimento e atividade de processos
 - **Logs Completos**: Sistema abrangente de logging com rastreamento detalhado em todas as operações
 - **Validação Robusta**: Tratamento de erros e validações em todas as etapas do processo
 
@@ -41,7 +44,6 @@ API REST desenvolvida com FastAPI para integração com o sistema Fluig, permiti
 - Python 3.8+
 - FastAPI 0.104.1+
 - Uvicorn 0.24.0+
-- Selenium 4.15.2+ (para autenticação via navegador)
 - Requests 2.31.0+
 - Pydantic 2.5.0+
 - Pydantic-settings 2.1.0+
@@ -99,15 +101,7 @@ TS_QLD=token_secret_qld
 URL_FLUIG_PRD=https://seu-fluig-prd.com.br
 URL_FLUIG_QLD=https://seu-fluig-qld.com.br
 
-# Credenciais de Login Fluig (para autenticação via navegador)
-FLUIG_ADMIN_USER=admin@usuario.com.br
-FLUIG_ADMIN_PASS=senha_admin
-FLUIG_USER_NAME=usuario@usuario.com.br
-FLUIG_USER_PASS=senha_usuario
-
-# Credenciais de Login Fluig QLD (para autenticação via navegador no ambiente qualidade)
-FLUIG_USER_NAME_QLD=usuario_qld@usuario.com.br
-FLUIG_USER_PASS_QLD=senha_usuario_qld
+# ID do Colaborador QLD (opcional)
 USER_COLLEAGUE_ID_QLD=id_do_colaborador_qld
 
 # ID do Colaborador Admin (para consultas PRD)
@@ -147,7 +141,6 @@ A API estará disponível em `http://127.0.0.1:3000`
 
 Acesse a documentação automática do FastAPI:
 - Swagger UI: `http://127.0.0.1:3000/docs`
-- ReDoc: `http://127.0.0.1:3000/redoc`
 
 ### Webapp:
 
@@ -191,13 +184,18 @@ Content-Type: application/json
   "descricao": "Descrição detalhada do chamado",
   "usuario": "email@usuario.com.br",
   "telefone": "5565999999999",
-  "anexos_ids": ["id_arquivo_1", "id_arquivo_2"]
+  "anexos": [
+    {
+      "nome": "documento.pdf",
+      "conteudo_base64": "JVBERi0xLjQKJeLjz9MKMy..."
+    }
+  ]
 }
 ```
 
 **Nota:** 
 - O campo `telefone` é opcional. Se não fornecido ou vazio, será usado o valor padrão `"65"`.
-- O campo `anexos_ids` é opcional e aceita uma lista de IDs de arquivos do Google Drive para anexar ao chamado.
+- O campo `anexos` é opcional e aceita uma lista de anexos em base64. Cada anexo deve conter `nome` (string) e `conteudo_base64` (string com o conteúdo do arquivo codificado em base64).
 
 **Resposta de Sucesso:**
 ```json
@@ -296,7 +294,6 @@ Obtém a lista completa de serviços disponíveis no Fluig. O ambiente é especi
 - `limit` (opcional): Limite de resultados. Padrão: `300`
 - `offset` (opcional): Offset para paginação. Padrão: `0`
 - `orderby` (opcional): Ordenação. Padrão: `servico_ASC`
-- `forcar_login` (opcional): Força novo login mesmo com cookies válidos. Padrão: `false`
 
 **Resposta de Sucesso:**
 ```json
@@ -405,7 +402,205 @@ POST /api/v1/fluig/qld/datasets/buscar
 
 ---
 
-### 7. Rotas do Webapp
+### 7. Iniciar Processo Genérico
+
+**POST** `/api/v1/fluig/{ambiente}/processos/iniciar`
+
+Inicia qualquer processo ou formulário do Fluig usando um payload genérico e flexível.
+
+**Path Parameters:**
+- `ambiente` (obrigatório): Ambiente do Fluig (`prd` ou `qld`)
+
+**Body:**
+```json
+{
+  "process_id": "Abertura de Chamados",
+  "payload": {
+    "processId": "Abertura de Chamados",
+    "version": 1,
+    "managerMode": false,
+    "taskUserId": "12345",
+    "isDigitalSigned": false,
+    "selectedState": 5,
+    "campos": {
+      "titulo": "Exemplo",
+      "descricao": "Descrição do exemplo"
+    }
+  }
+}
+```
+
+**Resposta de Sucesso:**
+```json
+{
+  "sucesso": true,
+  "process_id": "Abertura de Chamados",
+  "process_instance_id": 12345,
+  "dados": { ... },
+  "mensagem": "Processo iniciado com sucesso"
+}
+```
+
+**Exemplo:**
+```bash
+POST /api/v1/fluig/prd/processos/iniciar
+POST /api/v1/fluig/qld/processos/iniciar
+```
+
+---
+
+### 8. Upload de Arquivos
+
+**POST** `/api/v1/fluig/{ambiente}/processos/upload`
+
+Faz upload de arquivo(s) no ECM do Fluig sem criar processo.
+
+**Path Parameters:**
+- `ambiente` (obrigatório): Ambiente do Fluig (`prd` ou `qld`)
+
+**Body:**
+```json
+{
+  "arquivos": [
+    {
+      "nome": "documento.pdf",
+      "conteudo_base64": "JVBERi0xLjQKJeLjz9MKMy..."
+    }
+  ],
+  "colleague_id": "12345"
+}
+```
+
+**Resposta de Sucesso:**
+```json
+{
+  "sucesso": true,
+  "total_arquivos": 1,
+  "arquivos_enviados": 1,
+  "arquivos_com_erro": 0,
+  "detalhes": {
+    "enviados": [
+      {
+        "nome": "documento.pdf",
+        "tamanho_bytes": 1024,
+        "dados": { ... }
+      }
+    ],
+    "erros": []
+  }
+}
+```
+
+**Exemplo:**
+```bash
+POST /api/v1/fluig/prd/processos/upload
+POST /api/v1/fluig/qld/processos/upload
+```
+
+---
+
+### 9. Anexar Arquivos (Base64)
+
+**POST** `/api/v1/fluig/{ambiente}/processos/anexar`
+
+Anexa arquivo(s) codificados em base64 a um processo/chamado existente.
+
+**Path Parameters:**
+- `ambiente` (obrigatório): Ambiente do Fluig (`prd` ou `qld`)
+
+**Body:**
+```json
+{
+  "process_id": "Abertura de Chamados",
+  "process_instance_id": 657984,
+  "arquivos": [
+    {
+      "nome": "documento.pdf",
+      "conteudo_base64": "JVBERi0xLjQKJeLjz9MKMy..."
+    }
+  ]
+}
+```
+
+**Resposta de Sucesso:**
+```json
+{
+  "sucesso": true,
+  "process_id": "Abertura de Chamados",
+  "process_instance_id": 657984,
+  "total_arquivos": 1,
+  "arquivos_anexados": 1,
+  "arquivos_com_erro": 0,
+  "detalhes": {
+    "anexados": [
+      {
+        "documentId": 12345,
+        "fileName": "documento.pdf",
+        "fullPath": "BPM"
+      }
+    ],
+    "erros": []
+  }
+}
+```
+
+**Nota:** Os valores de `version`, `current_movto` e `attached_activity` são obtidos automaticamente da atividade do chamado.
+
+**Exemplo:**
+```bash
+POST /api/v1/fluig/prd/processos/anexar
+POST /api/v1/fluig/qld/processos/anexar
+```
+
+---
+
+### 10. Anexar Arquivos (Upload Direto)
+
+**POST** `/api/v1/fluig/{ambiente}/processos/anexar-upload`
+
+Anexa arquivo(s) brutos (multipart/form-data) a um processo/chamado existente. Ideal para uso no Swagger UI.
+
+**Path Parameters:**
+- `ambiente` (obrigatório): Ambiente do Fluig (`prd` ou `qld`)
+
+**Body (multipart/form-data):**
+- `process_id`: ID ou nome do processo (ex: "Abertura de Chamados")
+- `process_instance_id`: Número do chamado
+- `arquivos`: Arquivo(s) para anexar
+
+**Resposta de Sucesso:**
+```json
+{
+  "sucesso": true,
+  "process_id": "Abertura de Chamados",
+  "process_instance_id": 657984,
+  "total_arquivos": 1,
+  "arquivos_anexados": 1,
+  "arquivos_com_erro": 0,
+  "detalhes": {
+    "anexados": [
+      {
+        "documentId": 12345,
+        "fileName": "documento.pdf",
+        "fullPath": "BPM"
+      }
+    ],
+    "erros": []
+  }
+}
+```
+
+**Nota:** Os valores de `version`, `current_movto` e `attached_activity` são obtidos automaticamente da atividade do chamado.
+
+**Exemplo:**
+```bash
+POST /api/v1/fluig/prd/processos/anexar-upload
+POST /api/v1/fluig/qld/processos/anexar-upload
+```
+
+---
+
+### 11. Rotas do Webapp
 
 #### 7.1. Login
 
@@ -474,9 +669,6 @@ api-fluig-python/
 │   │   └── fluig_requests.py        # Classe para requisições HTTP ao Fluig
 │   ├── web/
 │   │   ├── web_auth_manager.py      # Gerenciador centralizado de autenticação
-│   │   ├── web_cookies.py           # Gerenciamento de cookies (salvar, carregar, validar)
-│   │   ├── web_driver.py            # Configuração do ChromeDriver/Selenium
-│   │   ├── web_login_fluig.py       # Login via Selenium (unificado para PRD e QLD)
 │   │   ├── web_servicos_fluig.py    # Funções para consulta de serviços
 │   │   └── web_chamado_fluig.py     # Funções para consulta de chamados
 │   ├── modelo_dados/
@@ -488,6 +680,7 @@ api-fluig-python/
 │   │   ├── rt_fluig_chamados.py     # Rotas unificadas de chamados (PRD/QLD)
 │   │   ├── rt_fluig_servicos.py     # Rotas unificadas de serviços (PRD/QLD)
 │   │   ├── rt_fluig_datasets.py     # Rotas unificadas de datasets (PRD/QLD)
+│   │   ├── rt_fluig_processos.py    # Rotas genéricas de processos (iniciar, upload, anexar)
 │   │   └── webapp/
 │   │       ├── rt_login.py          # Rotas de autenticação do webapp
 │   │       └── rt_chamado.py        # Rotas de criação de chamados do webapp
@@ -497,9 +690,12 @@ api-fluig-python/
 │   │   │   ├── css/
 │   │   │   │   └── style.css        # Estilos do webapp
 │   │   │   └── js/
-│   │   │       └── chamado.js       # JavaScript do formulário de chamados
+│   │   │       ├── chamado.js       # JavaScript do formulário de chamados
+│   │   │       └── configuracoes.js # JavaScript da página de configurações
 │   │   ├── templates/
-│   │   │   └── chamado.html         # Template HTML do formulário de chamados
+│   │   │   ├── chamado.html         # Template HTML do formulário de chamados
+│   │   │   ├── configuracoes.html   # Template HTML da página de configurações
+│   │   │   └── login.html           # Template HTML da página de login
 │   │   ├── planilha.py              # Processamento de planilhas Excel
 │   │   └── abrir_chamados.py        # Lógica de criação de chamados em lote
 │   ├── utilitarios_centrais/
@@ -514,7 +710,7 @@ api-fluig-python/
 │   │   └── prompts/
 │   │       └── prompts.py          # Prompts para IA
 │   ├── base_ia/                     # Módulo de IA alternativo (legado)
-│   ├── json/                        # Diretório para arquivos JSON (cookies, serviços)
+│   ├── json/                        # Diretório para arquivos JSON (serviços)
 │   │   └── services/                # Detalhes de serviços salvos localmente
 │   └── chromedriver-linux64/        # ChromeDriver para Linux
 ├── logs/                            # Diretório de logs (criado automaticamente)
@@ -545,18 +741,12 @@ O webapp utiliza autenticação via Google OAuth 2.0:
 
 ### Autenticação no Fluig
 
-O sistema utiliza autenticação via cookies obtidos através de login via Selenium:
+O sistema utiliza autenticação via OAuth 1.0 para todas as operações com o Fluig:
 
-- **Login Automático**: O sistema realiza login via navegador (Selenium) quando necessário
-- **Login Unificado**: Um único módulo (`web_login_fluig.py`) gerencia login para ambos os ambientes (PRD e QLD)
-- **Seleção Automática de Ambiente**: O sistema seleciona automaticamente a URL correta baseado no parâmetro ambiente
+- **Autenticação OAuth 1.0**: Todas as requisições utilizam OAuth 1.0 com Consumer Key/Secret e Token/Token Secret
 - **Credenciais por Ambiente**: 
-  - Ambiente PRD: usa `FLUIG_USER_NAME` e `FLUIG_USER_PASS`
-  - Ambiente QLD: usa `FLUIG_USER_NAME_QLD` e `FLUIG_USER_PASS_QLD`
-- **Gerenciamento de Cookies**: Cookies são salvos em `src/json/cookies_{usuario}_{ambiente}.json`
-- **Validação de Expiração**: O sistema verifica automaticamente se os cookies estão expirados (incluindo JWT)
-- **Re-autenticação Automática**: Se os cookies estiverem expirados ou inválidos, o sistema realiza login novamente automaticamente
-- **Usuários Separados**: Cookies são gerenciados separadamente para cada usuário e ambiente
+  - Ambiente PRD: usa `CK`, `CS`, `TK`, `TS`
+  - Ambiente QLD: usa `CK_QLD`, `CS_QLD`, `TK_QLD`, `TS_QLD`
 - **Colleague ID por Ambiente**: 
   - Ambiente PRD: usa `ADMIN_COLLEAGUE_ID`
   - Ambiente QLD: usa `USER_COLLEAGUE_ID_QLD`
@@ -565,7 +755,7 @@ O sistema utiliza autenticação via cookies obtidos através de login via Selen
 
 - `200`: Sucesso
 - `400`: Erro de validação
-- `401`: Não autorizado (API Key inválida ou cookies expirados)
+- `401`: Não autorizado (API Key inválida)
 - `403`: Acesso negado
 - `500`: Erro interno do servidor
 
@@ -647,6 +837,68 @@ curl -X POST "http://127.0.0.1:3000/api/v1/fluig/prd/datasets/buscar" \
   }'
 ```
 
+### Iniciar processo genérico:
+```bash
+curl -X POST "http://127.0.0.1:3000/api/v1/fluig/prd/processos/iniciar" \
+  -H "API-KEY: sua_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "process_id": "Abertura de Chamados",
+    "payload": {
+      "processId": "Abertura de Chamados",
+      "version": 1,
+      "managerMode": false,
+      "taskUserId": "12345",
+      "isDigitalSigned": false,
+      "selectedState": 5,
+      "campos": {
+        "titulo": "Exemplo",
+        "descricao": "Descrição do exemplo"
+      }
+    }
+  }'
+```
+
+### Upload de arquivo:
+```bash
+curl -X POST "http://127.0.0.1:3000/api/v1/fluig/prd/processos/upload" \
+  -H "API-KEY: sua_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "arquivos": [
+      {
+        "nome": "documento.pdf",
+        "conteudo_base64": "JVBERi0xLjQKJeLjz9MKMy..."
+      }
+    ]
+  }'
+```
+
+### Anexar arquivo (base64):
+```bash
+curl -X POST "http://127.0.0.1:3000/api/v1/fluig/prd/processos/anexar" \
+  -H "API-KEY: sua_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "process_id": "Abertura de Chamados",
+    "process_instance_id": 657984,
+    "arquivos": [
+      {
+        "nome": "documento.pdf",
+        "conteudo_base64": "JVBERi0xLjQKJeLjz9MKMy..."
+      }
+    ]
+  }'
+```
+
+### Anexar arquivo (upload direto):
+```bash
+curl -X POST "http://127.0.0.1:3000/api/v1/fluig/prd/processos/anexar-upload" \
+  -H "API-KEY: sua_api_key" \
+  -F "process_id=Abertura de Chamados" \
+  -F "process_instance_id=657984" \
+  -F "arquivos=@documento.pdf"
+```
 
 ## Monitoramento de Emails (Gmail Monitor)
 
@@ -662,7 +914,7 @@ O projeto inclui um módulo completo de monitoramento de emails que substitui o 
 ### Configuração
 
 Para configurar o monitoramento de emails, consulte a documentação completa em:
-**[docs/GMAIL_MONITOR_SETUP.md](docs/GMAIL_MONITOR_SETUP.md)**
+**[src/gmail_monitor/README.md](src/gmail_monitor/README.md)**
 
 ### Funcionalidades
 
@@ -682,24 +934,67 @@ O monitoramento é iniciado automaticamente com a aplicação. Para desativar, c
 # parar_monitoramento_gmail()
 ```
 
+## Monitoramento de Histórico de Chamados
+
+O projeto inclui um sistema completo de monitoramento de histórico de chamados abertos via email. Este sistema:
+
+- Salva automaticamente o histórico inicial quando um chamado é aberto via email
+- Monitora atualizações nos históricos periodicamente (a cada 1 hora, configurável)
+- Detecta novos eventos (MOVEMENT, OBSERVATION, ATTACHMENT) nos chamados
+- Armazena históricos em arquivos `.ini` usando ConfigParser
+
+### Configuração
+
+Para configurar o monitoramento de histórico, consulte a documentação completa em:
+**[src/historico_monitor/README.md](src/historico_monitor/README.md)**
+
+### Funcionalidades
+
+- ✅ Salvamento automático de histórico ao abrir chamado via email
+- ✅ Monitoramento periódico de atualizações
+- ✅ Detecção automática de novos eventos
+- ✅ Armazenamento simples em arquivos `.ini`
+- ✅ Inicialização automática com a aplicação
+
+### Variáveis de Ambiente
+
+```env
+# Habilitar/desabilitar monitoramento (padrão: true)
+HISTORICO_MONITOR_ENABLED=true
+
+# Intervalo de verificação em horas (padrão: 1.0)
+HISTORICO_CHECK_INTERVAL_HOURS=1.0
+
+# Ambiente do Fluig para monitoramento (padrão: PRD)
+HISTORICO_MONITOR_AMBIENTE=PRD
+```
+
+### Desativar Monitoramento
+
+O monitoramento é iniciado automaticamente com a aplicação. Para desativar, configure no `.env`:
+
+```env
+HISTORICO_MONITOR_ENABLED=false
+```
+
 ## Logs
 
 ### Níveis de Log
 
 - **INFO**: Operações principais, requisições recebidas, sucessos
 - **DEBUG**: Detalhes de processamento, validações internas, payloads
-- **WARNING**: Situações que requerem atenção (cookies expirados, dados não encontrados)
+- **WARNING**: Situações que requerem atenção (dados não encontrados, validações)
 - **ERROR**: Erros que impedem a operação (com stack trace completo)
 
 ### Logs Implementados
 
 - **Rotas**: Todas as rotas principais registram entrada, processamento e resultado
-- **Autenticação**: Tentativas de autenticação, validação de cookies e falhas são registradas
+- **Autenticação**: Tentativas de autenticação e falhas são registradas
 - **Requisições Fluig**: Todas as chamadas à API Fluig são logadas com detalhes
 - **Datasets**: Buscas em datasets são registradas com parâmetros e resultados
 - **IA**: Processamento de IA com contador de tentativas e erros
 - **Payloads**: Construção de payloads é logada para debugging
-- **Cookies**: Gerenciamento de cookies (salvar, carregar, validar) é logado
+- **OAuth**: Requisições OAuth 1.0 são logadas com detalhes
 
 ### Localização dos Logs
 

@@ -27,9 +27,34 @@ async def ObterListaServicos(
     api_key: str = Depends(Auth_API_KEY)
 ):
     """
-    Obtém a lista de serviços do Fluig
+    Obtém a lista completa de serviços disponíveis no Fluig
     
-    Realiza login via navegador se necessário, salva cookies e retorna lista de serviços
+    Este endpoint retorna todos os serviços configurados no sistema Fluig, incluindo
+    informações como ID, nome, descrição e outras propriedades relevantes.
+    
+    **Funcionalidades:**
+    - Lista todos os serviços do catálogo de serviços do Fluig
+    - Suporta paginação através de limit e offset
+    - Permite ordenação personalizada dos resultados
+    
+    **Parâmetros de paginação:**
+    - limit: Quantidade máxima de serviços a retornar (padrão: 300)
+    - offset: Número de registros a pular (padrão: 0)
+    - orderby: Campo e direção de ordenação (padrão: "servico_ASC")
+    
+    **Retorno:**
+    - Lista de objetos contendo informações de cada serviço
+    - Dados salvos automaticamente em arquivo JSON no sistema
+    
+    Args:
+        ambiente: Ambiente do Fluig onde os serviços estão localizados (prd ou qld)
+        limit: Quantidade máxima de serviços a retornar (padrão: 300)
+        offset: Número de registros a pular para paginação (padrão: 0)
+        orderby: Campo e direção de ordenação, formato: "campo_DIRECAO" (padrão: "servico_ASC")
+        forcar_login: Força novo login mesmo com cookies válidos (padrão: False)
+    
+    Returns:
+        list: Lista de objetos contendo informações dos serviços do Fluig
     """
     ambiente_validado = validar_ambiente(ambiente)
     try:
@@ -66,9 +91,28 @@ async def ObterDetalhesServico(
     api_key: str = Depends(Auth_API_KEY)
 ):
     """
-    Obtém os detalhes de um serviço específico do Fluig
+    Obtém os detalhes completos de um serviço específico do Fluig
     
-    Realiza autenticação se necessário e retorna os detalhes do serviço
+    Este endpoint retorna informações detalhadas sobre um serviço específico,
+    incluindo categorias, subcategorias, campos personalizados, configurações
+    e outras propriedades relevantes.
+    
+    **Funcionalidades:**
+    - Busca detalhes completos de um serviço pelo ID
+    - Retorna estrutura completa com categorias e subcategorias
+    - Inclui configurações e campos personalizados do serviço
+    
+    **Retorno:**
+    - Objeto contendo todas as informações detalhadas do serviço
+    - Dados salvos automaticamente em arquivo JSON no sistema
+    
+    Args:
+        Item: Objeto contendo:
+            - id_servico: ID único do serviço no Fluig
+        ambiente: Ambiente do Fluig onde o serviço está localizado (prd ou qld)
+    
+    Returns:
+        dict: Objeto contendo todas as informações detalhadas do serviço solicitado
     """
     ambiente_validado = validar_ambiente(ambiente)
     try:
@@ -77,16 +121,10 @@ async def ObterDetalhesServico(
         usuario = ConfigEnvSetings.FLUIG_ADMIN_USER
         senha = ConfigEnvSetings.FLUIG_ADMIN_PASS
 
-        cookies = obter_cookies_validos(ambiente_validado, forcar_login=False, usuario=usuario, senha=senha)
-        
-        if not cookies:
-            logger.error("[ObterDetalhesServico] Falha ao obter autenticação válida")
-            raise HTTPException(status_code=500, detail="Falha ao obter autenticação válida no Fluig")
-        logger.info(f"[ObterDetalhesServico] Buscando detalhes...")
+        logger.info(f"[ObterDetalhesServico] Buscando detalhes usando OAuth 1.0...")
         detalhes = obter_detalhes_servico_fluig(
             document_id=Item.id_servico,
-            ambiente=ambiente_validado,
-            cookies_list=cookies
+            ambiente=ambiente_validado
         )
         
         if not detalhes:

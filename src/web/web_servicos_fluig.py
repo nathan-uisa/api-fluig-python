@@ -1,4 +1,4 @@
-"""Módulo para buscar serviços do Fluig usando cookies"""
+"""Módulo para buscar serviços do Fluig usando OAuth 1.0"""
 import json
 import time
 import urllib.parse
@@ -7,11 +7,7 @@ from typing import Optional, Dict, Any, List
 import requests
 
 from src.utilitarios_centrais.logger import logger
-from src.web.web_cookies import (
-    carregar_cookies,
-    cookies_para_requests
-)
-from src.web.web_auth_manager import garantir_autenticacao
+from src.fluig.fluig_requests import RequestsFluig
 from src.modelo_dados.modelo_settings import ConfigEnvSetings
 
 
@@ -164,16 +160,16 @@ def obter_servicos_fluig(
 def _fazer_requisicao_detalhes_servico(
     document_id_int: int,
     base_url: str,
-    cookies_dict: Dict[str, str],
+    requests_fluig: RequestsFluig,
     ambiente: str
 ) -> Optional[requests.Response]:
     """
-    Faz a requisição para obter detalhes do serviço
+    Faz a requisição para obter detalhes do serviço usando OAuth 1.0
     
     Args:
         document_id_int: ID do documento como inteiro
         base_url: URL base do Fluig
-        cookies_dict: Dicionário de cookies
+        requests_fluig: Instância de RequestsFluig com OAuth 1.0 configurado
         ambiente: Ambiente ('PRD' ou 'QLD')
     
     Returns:
@@ -197,27 +193,11 @@ def _fazer_requisicao_detalhes_servico(
             "order": None
         }
         
-        # Headers
-        headers = {
-            'accept': 'application/json, text/javascript, */*; q=0.01',
-            'accept-language': 'pt-BR,pt;q=0.9',
-            'content-type': 'application/json; charset=UTF-8',
-            'origin': base_url,
-            'referer': f'{base_url}/webdesk/',
-            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36',
-            'x-requested-with': 'XMLHttpRequest'
-        }
-        
         logger.debug(f"[_fazer_requisicao_detalhes_servico] URL: {url}")
         logger.debug(f"[_fazer_requisicao_detalhes_servico] Payload: {payload}")
         
-        response = requests.post(
-            url,
-            headers=headers,
-            cookies=cookies_dict,
-            json=payload,
-            timeout=30
-        )
+        # Usa RequestTipoPOST que utiliza OAuth 1.0
+        response = requests_fluig.RequestTipoPOST(url, payload)
         
         return response
         
@@ -238,22 +218,25 @@ def _fazer_requisicao_detalhes_servico(
 def obter_detalhes_servico_fluig(
     document_id: str,
     ambiente: str = "PRD",
-    cookies_list: Optional[List[Dict]] = None
+    cookies_list: Optional[List[Dict]] = None  # Deprecated: mantido para compatibilidade, não é mais usado
 ) -> Optional[Dict[str, Any]]:
     """
-    Obtém detalhes de um serviço específico do Fluig
+    Obtém detalhes de um serviço específico do Fluig usando OAuth 1.0
     
-    Se os cookies estiverem expirados, renova automaticamente e tenta novamente.
+    IMPORTANTE: Esta função agora usa exclusivamente OAuth 1.0 (CK, CS, TK, TS)
+    e não depende mais de cookies ou login via browser.
     
     Args:
         document_id: ID do documento do serviço (documentid)
         ambiente: Ambiente ('PRD' ou 'QLD')
-        cookies_list: Lista de cookies (opcional, carrega se não fornecido)
+        cookies_list: DEPRECATED - não é mais usado, mantido apenas para compatibilidade
     
     Returns:
         Dados JSON com detalhes do serviço ou None
     """
     try:
+        logger.info(f"[obter_detalhes_servico_fluig] Usando autenticação OAuth 1.0")
+        
         # Converte document_id para int
         try:
             document_id_int = int(document_id)
@@ -275,51 +258,17 @@ def obter_detalhes_servico_fluig(
         
         logger.info(f"[obter_detalhes_servico_fluig] Buscando detalhes do serviço {document_id} no ambiente {ambiente}...")
         
-        # Carrega cookies se não foram fornecidos
-        if cookies_list is None:
-            sucesso, cookies_list = garantir_autenticacao(ambiente, forcar_login=False)
-            if not sucesso or not cookies_list:
-                logger.error(f"[obter_detalhes_servico_fluig] Falha ao garantir autenticação para {ambiente}")
-                return None
+        # Inicializa RequestsFluig com OAuth 1.0
+        requests_fluig = RequestsFluig(ambiente=ambiente)
         
-        cookies_dict = cookies_para_requests(cookies_list)
-        
-        if not cookies_dict:
-            logger.error(f"[obter_detalhes_servico_fluig] Nenhum cookie válido após carregar para {ambiente}")
-            return None
-        
-        # Primeira tentativa
-        response = _fazer_requisicao_detalhes_servico(document_id_int, base_url, cookies_dict, ambiente)
+        # Faz requisição usando OAuth 1.0
+        response = _fazer_requisicao_detalhes_servico(document_id_int, base_url, requests_fluig, ambiente)
         
         if not response:
             logger.error(f"[obter_detalhes_servico_fluig] Falha ao fazer requisição")
             return None
         
         logger.info(f"[obter_detalhes_servico_fluig] Status da requisição: {response.status_code}")
-        
-        # Se recebeu 401 ou 403, tenta renovar cookies e fazer nova tentativa
-        if response.status_code in [401, 403]:
-            logger.warning(f"[obter_detalhes_servico_fluig] Erro de autenticação (HTTP {response.status_code})")
-            logger.info(f"[obter_detalhes_servico_fluig] Tentando renovar autenticação...")
-            
-            # Força novo login através do gerenciador de autenticação
-            sucesso, cookies_list_novos = garantir_autenticacao(ambiente, forcar_login=True)
-            if sucesso and cookies_list_novos:
-                logger.info(f"[obter_detalhes_servico_fluig] Autenticação renovada, tentando novamente...")
-                cookies_dict = cookies_para_requests(cookies_list_novos)
-                
-                # Segunda tentativa com novos cookies
-                response = _fazer_requisicao_detalhes_servico(document_id_int, base_url, cookies_dict, ambiente)
-                
-                if not response:
-                    logger.error(f"[obter_detalhes_servico_fluig] Falha na segunda tentativa após renovar autenticação")
-                    return None
-                
-                logger.info(f"[obter_detalhes_servico_fluig] Status da segunda requisição: {response.status_code}")
-            else:
-                logger.error(f"[obter_detalhes_servico_fluig] Falha ao renovar autenticação para {ambiente}")
-                logger.error(f"[obter_detalhes_servico_fluig] Resposta do servidor: {response.text[:500]}")
-                return None
         
         # Processa resposta
         if response.status_code == 200:

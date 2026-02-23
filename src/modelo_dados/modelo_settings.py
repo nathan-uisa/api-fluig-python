@@ -56,7 +56,17 @@ class ConfigEnv(BaseSettings):
     UNIVERSE_DOMAIN: str
 
     #-------------------------ID PASTA GOOGLE DRIVE ----------------------
-    FOLDER_ID_DRIVE: str
+    # ID da pasta do Google Drive para anexos (opcional)
+    FOLDER_ID_DRIVE: str = ""
+    
+    # ID da pasta do Google Drive para configurações do sistema
+    # Se não configurado, usa FOLDER_ID_DRIVE como fallback
+    FOLDER_ID_DRIVE_CONFIGS: str = ""
+    
+    # Habilita/desabilita sincronização automática de configurações com Google Drive
+    # Valores aceitos: "true", "True", "1" (habilitado) ou "false", "False", "0" (desabilitado)
+    # Padrão: "false" (desabilitado - requer configuração manual)
+    DRIVE_SYNC_ENABLED: str = "false"
     #-----------------------------------------------------------------------
 
     #-------------------------GOOGLE OAUTH (Webapp)------------------------
@@ -80,6 +90,14 @@ class ConfigEnv(BaseSettings):
     # Padrão: "true" (habilitado)
     GMAIL_MONITOR_ENABLED: str = "true"
     
+    #-------------------------BROWSER LOGIN (Login via Navegador)-----------
+    # Habilita/desabilita o login via navegador (Selenium/ChromeDriver) em todo o projeto
+    # Valores aceitos: "true", "True", "1" (habilitado) ou "false", "False", "0" (desabilitado)
+    # Padrão: "true" (habilitado)
+    # Quando desabilitado, todas as funções que dependem de login via browser retornarão erro
+    # Útil para ambientes onde apenas OAuth 1.0 é usado e não há necessidade de cookies
+    BROWSER_LOGIN_ENABLED: str = "true"
+    
     # Email do usuário para delegação de domínio (opcional)
     # Se não configurado, usa a conta de serviço diretamente
     GMAIL_DELEGATE_USER: str = ""
@@ -92,7 +110,41 @@ class ConfigEnv(BaseSettings):
     GMAIL_MONITOR_AMBIENTE: str = "prd"
     
     # Intervalo de verificação de emails (em minutos)
-    GMAIL_CHECK_INTERVAL: int = 1
+    GMAIL_CHECK_INTERVAL: int = 20
+    
+    # Lista de emails que devem ser excluídos do monitoramento de histórico
+    # Formato no .env: HISTORICO_EXCLUDE_EMAILS=email1@dominio.com,email2@dominio.com
+    HISTORICO_EXCLUDE_EMAILS: str = ""
+    
+    # Intervalo de verificação de histórico (em minutos)
+    HISTORICO_CHECK_INTERVAL_MINUTES: float = 60.0
+    
+    # Intervalo de verificação de histórico (em horas) - alternativa ao minutos
+    HISTORICO_CHECK_INTERVAL_HOURS: float = 1.0
+    
+    # Habilita ou desabilita o monitoramento de histórico
+    HISTORICO_MONITOR_ENABLED: str = "true"
+    
+    # Padrões para deduplicação de emails (regex ou palavras-chave separadas por vírgula)
+    # Exemplo: UUID:.*,MAC:.*,Processo ID:.*
+    # Ou palavras-chave simples: UUID:,MAC:,Processo ID:
+    EMAIL_DEDUPLICATION_PATTERNS: str = ""
+    
+    # Lista de emails que devem passar pela verificação de deduplicação
+    # Se vazio, todos os emails serão verificados. Se preenchido, apenas esses emails serão verificados
+    # Formato: EMAIL_DEDUPLICATION_EMAILS=email1@dominio.com,email2@dominio.com
+    EMAIL_DEDUPLICATION_EMAILS: str = ""
+    #-----------------------------------------------------------------------
+
+    #-------------------------FORESCOUT API (Integração Forescout)---------
+    # Credenciais para autenticação na API do Forescout
+    # Host do servidor Forescout (ex: forescout.example.com)
+    # A URL será construída automaticamente usando HTTPS (https://FORESCOUT_HOST)
+    FORESCOUT_HOST: str = ""
+    # Usuário para autenticação na API do Forescout
+    FORESCOUT_USER: str = ""
+    # Senha para autenticação na API do Forescout
+    FORESCOUT_PASS: str = ""
     #-----------------------------------------------------------------------
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

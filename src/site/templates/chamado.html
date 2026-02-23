@@ -66,9 +66,10 @@
                         {% endif %}
                     </div>
                     <div class="version-header">
-                        <span class="version-text">Versão {{ versao or "5.3.0" }}</span>
+                        <span class="version-text">Versão {{ versao or "9.2.3" }}</span>
                         <a href="https://github.com/nathan-uisa/api-fluig-python" target="_blank" class="docs-link" title="Abrir repositório no GitHub">GitHub</a>
                         <a href="/docs" target="_blank" class="docs-link" title="Abrir documentação da API">Documentação</a>
+                        <a href="/configuracoes" class="docs-link" title="Abrir página de configurações">Configurações</a>
                     </div>
                 </div>
         {% if dados %}
@@ -162,7 +163,7 @@
                             <input type="text" id="item_servico" name="item_servico" maxlength="255" placeholder="Selecione um Serviço" readonly title="Item específico do serviço selecionado. Este campo é preenchido automaticamente ao selecionar um serviço.">
                         </div>
                         <div class="form-group">
-                            <label for="servico">Serviço</label>
+                            <label for="servico">Serviço<span class="required">*</span></label>
                             <div class="autocomplete-container">
                                 <input type="text" id="servico" name="servico" maxlength="255" placeholder="Digite para buscar..." autocomplete="off" title="Digite o nome do serviço desejado. Ao selecionar um serviço, os demais campos de classificação serão preenchidos automaticamente.">
                                 <input type="hidden" id="servico_id" name="servico_id">
@@ -228,8 +229,16 @@
             </div>
             <!-- Seção: Dados do Chamado -->
             <div class="form-section-box">
-                <div class="section-header">
+                <div class="section-header" style="display: flex; justify-content: space-between; align-items: center;">
                     <h2 class="section-title">Dados do Chamado</h2>
+                    <div style="display: flex; gap: 8px;">
+                        <button type="button" id="btn-carregar-template" class="btn-secondary" style="padding: 6px 12px; font-size: 13px;">
+                            Carregar Template
+                        </button>
+                        <button type="button" id="btn-salvar-template" class="btn-primary" style="padding: 6px 12px; font-size: 13px;">
+                            Salvar Template
+                        </button>
+                    </div>
                 </div>
                 <div class="section-content">
                     <div class="form-grid-two">
@@ -336,6 +345,34 @@
             </div>
             <div class="modal-footer" id="modal-processamento-footer" style="display: none; padding: 20px; border-top: 1px solid var(--border-primary); text-align: right;">
                 <button type="button" id="btn-concluir-processamento" class="btn-primary">Concluir</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para salvar template -->
+    <div id="modal-salvar-template" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 10000; align-items: center; justify-content: center;">
+        <div style="background: var(--bg-primary, #fff); border-radius: 8px; padding: 24px; max-width: 400px; width: 90%; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);">
+            <h3 style="margin: 0 0 16px 0; color: var(--text-primary, #333); font-size: 18px;">Salvar Template</h3>
+            <div style="margin-bottom: 16px;">
+                <label for="nome-template-input" style="display: block; margin-bottom: 8px; color: var(--text-secondary, #666); font-size: 14px;">Nome do Template:</label>
+                <input type="text" id="nome-template-input" placeholder="Digite o nome do template" style="width: 100%; padding: 10px; border: 1px solid var(--border-primary, #ddd); border-radius: 4px; font-size: 14px;">
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button type="button" id="btn-cancelar-salvar-template" class="btn-secondary" style="padding: 8px 16px; font-size: 14px;">Cancelar</button>
+                <button type="button" id="btn-confirmar-salvar-template" class="btn-primary" style="padding: 8px 16px; font-size: 14px;">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para listar templates -->
+    <div id="modal-listar-templates" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 10000; align-items: center; justify-content: center;">
+        <div style="background: var(--bg-primary, #fff); border-radius: 8px; padding: 24px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);">
+            <h3 style="margin: 0 0 16px 0; color: var(--text-primary, #333); font-size: 18px;">Selecione um Template</h3>
+            <div id="lista-templates-container" style="margin-bottom: 16px;">
+                <!-- Templates serão inseridos aqui via JavaScript -->
+            </div>
+            <div style="display: flex; justify-content: flex-end;">
+                <button type="button" id="btn-fechar-listar-templates" class="btn-secondary" style="padding: 8px 16px; font-size: 14px;">Fechar</button>
             </div>
         </div>
     </div>
